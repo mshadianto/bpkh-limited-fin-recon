@@ -1,0 +1,27 @@
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║                    AURIX RECONCILIATION MODULE - DEPENDENCIES                 ║
+# ║                           BPKH Limited - Production                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+# Core Framework
+streamlit>=1.32.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.0
+openpyxl>=3.1.2
+xlrd>=2.0.1
+
+# Visualization
+plotly>=5.18.0
+
+# Utilities
+python-dateutil>=2.8.2
+
+# Optional: For fuzzy matching (future enhancement)
+# rapidfuzz>=3.6.0
+# fuzzywuzzy>=0.18.0
+
+# Optional: For database logging (future enhancement)
+# sqlalchemy>=2.0.0
+# psycopg2-binary>=2.9.9
