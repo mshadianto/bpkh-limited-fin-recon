@@ -9,6 +9,11 @@ AURIX Reconciliation - Automated financial reconciliation tool for BPKH (Badan P
 ## Commands
 
 ```bash
+# Create virtual environment (Python 3.10+ required)
+python -m venv venv
+source venv/bin/activate      # Linux/Mac
+.\venv\Scripts\activate       # Windows
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -22,11 +27,12 @@ docker run -p 8501:8501 aurix-reconciliation
 
 ## Architecture
 
-**Single monolithic Streamlit application** (`app.py` ~1,245 lines) with three core classes:
+**Single monolithic Streamlit application** (`app.py`, ~1,600 lines) with four core classes:
 
 - `ReconciliationEngine` - Core reconciliation logic: aggregates data by COA, performs outer join matching, calculates variances
 - `ReconciliationVisualizer` - Plotly chart generation (donut, bar, waterfall, heatmap)
 - `ReportExporter` - Multi-sheet Excel export with styling
+- `AIAnalyzer` - Groq LLM integration for insights, anomaly detection, and chat
 
 **Data flow:**
 ```
@@ -59,6 +65,22 @@ COA codes are auto-converted to numeric via `pd.to_numeric()` for matching.
 - **Health check:** `/_stcore/health`
 - **Railway:** Uses Dockerfile with dynamic $PORT
 - **Docker user:** `aurix:aurix` (non-root, UID 1000)
+
+## AI Features (Groq Integration)
+
+Requires `GROQ_API_KEY` environment variable. Copy `.env.example` to `.env` and add your key.
+
+**Model:** `llama-3.3-70b-versatile`
+
+**Features:**
+- **Auto-Insights** - AI-generated analysis of reconciliation results (3-5 bullet points)
+- **Anomaly Detection** - Rule-based + AI detection of unusual patterns (HIGH/MEDIUM/LOW severity)
+- **Chat Assistant** - Natural language Q&A about reconciliation data in Bahasa Indonesia
+
+**AIAnalyzer methods:**
+- `generate_insights(summary, coa_recon)` - Generate bullet-point insights
+- `detect_anomalies(coa_recon, summary)` - Return list of anomaly dicts
+- `chat(question, summary, coa_recon)` - Answer user questions
 
 ## Brand Colors
 

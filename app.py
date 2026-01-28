@@ -29,10 +29,22 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import io
+import os
 from typing import Tuple, Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import warnings
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Optional: Groq for AI features
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 warnings.filterwarnings('ignore')
 
@@ -743,6 +755,220 @@ class ReportExporter:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# AI ANALYSIS MODULE (GROQ)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class AIAnalyzer:
+    """
+    AI-powered analysis module using Groq LLM.
+    Provides insights, anomaly detection, and chat capabilities for reconciliation data.
+    """
+
+    SYSTEM_PROMPT = """Anda adalah AI assistant untuk AURIX Reconciliation System di BPKH Limited (Saudi Arabia).
+Tugas Anda menganalisis hasil reconciliation antara Jurnal Manual dan Daftra Export untuk keperluan audit keuangan syariah.
+
+Status Categories:
+- MATCHED (Sesuai): Tidak ada selisih sama sekali
+- TOLERANCE (Dalam Toleransi): Selisih dalam batas yang dapat diterima
+- VARIANCE (Selisih): Selisih di luar toleransi, perlu investigasi
+- UNMATCHED_MANUAL: Transaksi hanya ada di Jurnal Manual (tidak ada di Daftra)
+- UNMATCHED_DAFTRA: Transaksi hanya ada di Daftra (tidak ada di Jurnal Manual)
+
+Berikan analisis dalam Bahasa Indonesia yang jelas, profesional, dan actionable.
+Fokus pada temuan yang signifikan dan rekomendasi perbaikan."""
+
+    def __init__(self, api_key: str):
+        """Initialize AI Analyzer with Groq client."""
+        if not GROQ_AVAILABLE:
+            raise ImportError("Groq library not installed. Run: pip install groq")
+        self.client = Groq(api_key=api_key)
+        self.model = "llama-3.3-70b-versatile"
+
+    def _call_llm(self, user_message: str, max_tokens: int = 1024) -> str:
+        """Make a call to Groq LLM."""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=max_tokens,
+                temperature=0.3
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error calling AI: {str(e)}"
+
+    def generate_insights(self, summary: Dict[str, Any], coa_recon: pd.DataFrame) -> str:
+        """
+        Generate AI-powered insights from reconciliation results.
+
+        Args:
+            summary: Summary statistics dictionary
+            coa_recon: COA-level reconciliation DataFrame
+
+        Returns:
+            String with bullet-point insights in Indonesian
+        """
+        # Prepare context
+        match_rate = (summary['matched_count'] + summary['tolerance_count']) / summary['total_coa_accounts'] * 100
+
+        top_variances = coa_recon[coa_recon['Status'] == ReconciliationStatus.VARIANCE.value].head(5)
+        variance_details = ""
+        for _, row in top_variances.iterrows():
+            variance_details += f"- COA {int(row['COA'])}: Selisih SAR {row['Net_Variance']:,.2f}\n"
+
+        unmatched_manual = coa_recon[coa_recon['Status'] == ReconciliationStatus.UNMATCHED_MANUAL.value]
+        unmatched_daftra = coa_recon[coa_recon['Status'] == ReconciliationStatus.UNMATCHED_DAFTRA.value]
+
+        prompt = f"""Analisis hasil reconciliation berikut dan berikan 3-5 insight utama:
+
+RINGKASAN DATA:
+- Total COA: {summary['total_coa_accounts']}
+- Match Rate: {match_rate:.1f}%
+- Fully Matched: {summary['matched_count']} COA
+- Within Tolerance: {summary['tolerance_count']} COA
+- With Variance: {summary['variance_count']} COA
+- Only in Manual: {summary['unmatched_manual']} COA
+- Only in Daftra: {summary['unmatched_daftra']} COA
+
+TOTAL AMOUNTS:
+- Manual Debit: SAR {summary['total_manual_debit']:,.2f}
+- Manual Credit: SAR {summary['total_manual_credit']:,.2f}
+- Daftra Debit: SAR {summary['total_daftra_debit']:,.2f}
+- Daftra Credit: SAR {summary['total_daftra_credit']:,.2f}
+- Total Net Variance: SAR {summary['total_net_variance']:,.2f}
+
+TOP 5 VARIANCES:
+{variance_details if variance_details else "Tidak ada variance signifikan"}
+
+Berikan insight dalam format bullet points, fokus pada:
+1. Kesehatan overall reconciliation
+2. Area yang perlu perhatian
+3. Rekomendasi tindak lanjut"""
+
+        return self._call_llm(prompt)
+
+    def detect_anomalies(self, coa_recon: pd.DataFrame, summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Detect anomalies in reconciliation data using AI analysis.
+
+        Args:
+            coa_recon: COA-level reconciliation DataFrame
+            summary: Summary statistics
+
+        Returns:
+            List of anomaly dictionaries with severity and description
+        """
+        anomalies = []
+
+        # Calculate statistics for anomaly detection
+        variance_values = coa_recon['Net_Variance'].abs()
+        mean_variance = variance_values.mean()
+        std_variance = variance_values.std()
+
+        # Rule-based anomaly detection (fast, no API call needed)
+        # 1. Extreme variances (> 3 std dev)
+        extreme_threshold = mean_variance + (3 * std_variance) if std_variance > 0 else mean_variance * 3
+        extreme_variances = coa_recon[variance_values > extreme_threshold]
+
+        for _, row in extreme_variances.iterrows():
+            anomalies.append({
+                "severity": "HIGH",
+                "type": "Extreme Variance",
+                "coa": int(row['COA']) if pd.notna(row['COA']) else "N/A",
+                "description": f"COA {int(row['COA']) if pd.notna(row['COA']) else 'N/A'} memiliki variance ekstrem: SAR {row['Net_Variance']:,.2f}",
+                "amount": row['Net_Variance']
+            })
+
+        # 2. Large unmatched amounts
+        unmatched_manual = coa_recon[coa_recon['Status'] == ReconciliationStatus.UNMATCHED_MANUAL.value]
+        for _, row in unmatched_manual.iterrows():
+            if abs(row['Manual_Net']) > 10000:  # Threshold SAR 10,000
+                anomalies.append({
+                    "severity": "MEDIUM",
+                    "type": "Large Unmatched (Manual)",
+                    "coa": int(row['COA']) if pd.notna(row['COA']) else "N/A",
+                    "description": f"COA {int(row['COA']) if pd.notna(row['COA']) else 'N/A'} hanya di Manual dengan nilai besar: SAR {row['Manual_Net']:,.2f}",
+                    "amount": row['Manual_Net']
+                })
+
+        unmatched_daftra = coa_recon[coa_recon['Status'] == ReconciliationStatus.UNMATCHED_DAFTRA.value]
+        for _, row in unmatched_daftra.iterrows():
+            if abs(row['Daftra_Net']) > 10000:
+                anomalies.append({
+                    "severity": "MEDIUM",
+                    "type": "Large Unmatched (Daftra)",
+                    "coa": int(row['COA']) if pd.notna(row['COA']) else "N/A",
+                    "description": f"COA {int(row['COA']) if pd.notna(row['COA']) else 'N/A'} hanya di Daftra dengan nilai besar: SAR {row['Daftra_Net']:,.2f}",
+                    "amount": row['Daftra_Net']
+                })
+
+        # 3. Suspicious patterns - one-sided entries
+        for _, row in coa_recon.iterrows():
+            if row['Status'] not in [ReconciliationStatus.UNMATCHED_MANUAL.value, ReconciliationStatus.UNMATCHED_DAFTRA.value]:
+                # Check if debit/credit mismatch pattern
+                manual_ratio = row['Manual_Debit'] / (row['Manual_Credit'] + 0.01) if row['Manual_Credit'] != 0 else float('inf')
+                daftra_ratio = row['Daftra_Debit'] / (row['Daftra_Credit'] + 0.01) if row['Daftra_Credit'] != 0 else float('inf')
+
+                if (manual_ratio > 100 and daftra_ratio < 0.01) or (manual_ratio < 0.01 and daftra_ratio > 100):
+                    anomalies.append({
+                        "severity": "LOW",
+                        "type": "Debit/Credit Pattern Mismatch",
+                        "coa": int(row['COA']) if pd.notna(row['COA']) else "N/A",
+                        "description": f"COA {int(row['COA']) if pd.notna(row['COA']) else 'N/A'} memiliki pola debit/credit yang berbeda antara Manual dan Daftra",
+                        "amount": row['Net_Variance']
+                    })
+
+        # Sort by severity
+        severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+        anomalies.sort(key=lambda x: severity_order.get(x['severity'], 3))
+
+        return anomalies[:10]  # Return top 10 anomalies
+
+    def chat(self, question: str, summary: Dict[str, Any], coa_recon: pd.DataFrame) -> str:
+        """
+        Answer user questions about reconciliation data.
+
+        Args:
+            question: User's question in natural language
+            summary: Summary statistics
+            coa_recon: COA-level reconciliation DataFrame
+
+        Returns:
+            AI-generated answer
+        """
+        # Prepare context with top variances
+        match_rate = (summary['matched_count'] + summary['tolerance_count']) / summary['total_coa_accounts'] * 100
+
+        top_variances = coa_recon.head(20)
+        variance_table = "COA | Account | Manual Net | Daftra Net | Variance | Status\n"
+        variance_table += "-" * 80 + "\n"
+        for _, row in top_variances.iterrows():
+            variance_table += f"{int(row['COA']) if pd.notna(row['COA']) else 'N/A'} | {str(row['Account_Name'])[:20]} | {row['Manual_Net']:,.0f} | {row['Daftra_Net']:,.0f} | {row['Net_Variance']:,.0f} | {row['Status']}\n"
+
+        prompt = f"""KONTEKS DATA RECONCILIATION:
+
+Ringkasan:
+- Total COA: {summary['total_coa_accounts']}
+- Match Rate: {match_rate:.1f}%
+- Total Net Variance: SAR {summary['total_net_variance']:,.2f}
+- Matched: {summary['matched_count']}, Tolerance: {summary['tolerance_count']}, Variance: {summary['variance_count']}
+- Unmatched Manual: {summary['unmatched_manual']}, Unmatched Daftra: {summary['unmatched_daftra']}
+
+Top 20 COA by Variance:
+{variance_table}
+
+PERTANYAAN USER:
+{question}
+
+Jawab pertanyaan dengan jelas dan spesifik berdasarkan data di atas."""
+
+        return self._call_llm(prompt, max_tokens=1500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # STREAMLIT APPLICATION
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -940,14 +1166,28 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
                 st.dataframe(df_daftra.head(3), use_container_width=True)
         
         st.markdown("---")
+
+        # AI Status indicator
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key and GROQ_AVAILABLE:
+            st.markdown("### 🤖 AI Assistant")
+            st.success("AI Features Enabled", icon="✅")
+        else:
+            st.markdown("### 🤖 AI Assistant")
+            if not GROQ_AVAILABLE:
+                st.warning("Install groq: `pip install groq`", icon="⚠️")
+            else:
+                st.info("Set GROQ_API_KEY in .env", icon="ℹ️")
+
+        st.markdown("---")
         st.markdown("""
         <div style="text-align: center; color: #666; font-size: 0.8rem;">
-            <p><strong>AURIX v1.0.0</strong></p>
+            <p><strong>AURIX v1.1.0</strong></p>
             <p>Built for BPKH Audit Committee</p>
             <p>© 2025 KIM Consulting</p>
         </div>
         """, unsafe_allow_html=True)
-    
+
     return df_manual, df_daftra, config
 
 
@@ -1047,13 +1287,31 @@ def main():
     
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Initialize AI Analyzer if available
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    ai_analyzer = None
+    if groq_api_key and GROQ_AVAILABLE:
+        try:
+            ai_analyzer = AIAnalyzer(groq_api_key)
+        except Exception as e:
+            st.warning(f"AI initialization failed: {e}")
+
     # Main content tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Dashboard", 
-        "📋 COA Reconciliation", 
-        "📝 Transaction Detail",
-        "📜 Audit Trail"
-    ])
+    if ai_analyzer:
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 Dashboard",
+            "🤖 AI Analysis",
+            "📋 COA Reconciliation",
+            "📝 Transaction Detail",
+            "📜 Audit Trail"
+        ])
+    else:
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📈 Dashboard",
+            "📋 COA Reconciliation",
+            "📝 Transaction Detail",
+            "📜 Audit Trail"
+        ])
     
     with tab1:
         col1, col2 = st.columns(2)
@@ -1099,39 +1357,127 @@ def main():
             {"🟢 Excellent" if match_rate >= 95 else "🟡 Good" if match_rate >= 80 else "🔴 Needs Attention"}
             """)
     
-    with tab2:
+    # AI Analysis Tab (only if AI is available)
+    if ai_analyzer:
+        with tab2:
+            st.markdown("### 🤖 AI-Powered Analysis")
+
+            # Initialize session state for chat history
+            if 'chat_history' not in st.session_state:
+                st.session_state.chat_history = []
+
+            col_ai1, col_ai2 = st.columns(2)
+
+            with col_ai1:
+                st.markdown("#### 💡 Auto-Generated Insights")
+                if 'ai_insights' not in st.session_state:
+                    with st.spinner("🔄 Generating AI insights..."):
+                        st.session_state.ai_insights = ai_analyzer.generate_insights(summary, coa_recon)
+                st.markdown(st.session_state.ai_insights)
+
+                if st.button("🔄 Regenerate Insights"):
+                    with st.spinner("🔄 Regenerating..."):
+                        st.session_state.ai_insights = ai_analyzer.generate_insights(summary, coa_recon)
+                    st.rerun()
+
+            with col_ai2:
+                st.markdown("#### ⚠️ Anomaly Detection")
+                if 'ai_anomalies' not in st.session_state:
+                    with st.spinner("🔍 Detecting anomalies..."):
+                        st.session_state.ai_anomalies = ai_analyzer.detect_anomalies(coa_recon, summary)
+
+                if st.session_state.ai_anomalies:
+                    for anomaly in st.session_state.ai_anomalies:
+                        severity_color = {
+                            "HIGH": "🔴",
+                            "MEDIUM": "🟠",
+                            "LOW": "🟡"
+                        }.get(anomaly['severity'], "⚪")
+
+                        st.markdown(f"""
+                        <div style="background: {'#FFEBEE' if anomaly['severity'] == 'HIGH' else '#FFF3E0' if anomaly['severity'] == 'MEDIUM' else '#FFFDE7'};
+                                    padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;
+                                    border-left: 4px solid {'#C62828' if anomaly['severity'] == 'HIGH' else '#F57C00' if anomaly['severity'] == 'MEDIUM' else '#FBC02D'};">
+                            <strong>{severity_color} {anomaly['type']}</strong><br>
+                            <span style="font-size: 0.9rem;">{anomaly['description']}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.success("✅ No significant anomalies detected!")
+
+            st.markdown("---")
+            st.markdown("#### 💬 Chat with AI Assistant")
+            st.markdown("Tanya apa saja tentang hasil reconciliation Anda.")
+
+            # Chat interface
+            user_question = st.text_input(
+                "Pertanyaan Anda:",
+                placeholder="Contoh: Jelaskan COA dengan variance terbesar...",
+                key="ai_chat_input"
+            )
+
+            if st.button("📤 Kirim", key="send_chat"):
+                if user_question:
+                    with st.spinner("🤔 Thinking..."):
+                        response = ai_analyzer.chat(user_question, summary, coa_recon)
+                        st.session_state.chat_history.append({
+                            "question": user_question,
+                            "answer": response
+                        })
+
+            # Display chat history
+            if st.session_state.chat_history:
+                st.markdown("#### 📜 Chat History")
+                for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):
+                    with st.expander(f"Q: {chat['question'][:50]}...", expanded=(i == 0)):
+                        st.markdown(f"**Pertanyaan:** {chat['question']}")
+                        st.markdown(f"**Jawaban:** {chat['answer']}")
+
+        # COA Reconciliation Tab (tab3 when AI is available)
+        tab_coa = tab3
+        # Transaction Detail Tab (tab4 when AI is available)
+        tab_txn = tab4
+        # Audit Trail Tab (tab5 when AI is available)
+        tab_audit = tab5
+    else:
+        # Without AI: tab2 = COA, tab3 = Txn, tab4 = Audit
+        tab_coa = tab2
+        tab_txn = tab3
+        tab_audit = tab4
+
+    with tab_coa:
         st.markdown("### COA-Level Reconciliation Results")
-        
+
         # Filters
         col_f1, col_f2, col_f3 = st.columns(3)
-        
+
         with col_f1:
             status_filter = st.multiselect(
                 "Filter by Status",
                 options=coa_recon['Status'].unique().tolist(),
                 default=coa_recon['Status'].unique().tolist()
             )
-        
+
         with col_f2:
             min_variance = st.number_input(
                 "Min Absolute Variance (SAR)",
                 min_value=0.0,
                 value=0.0
             )
-        
+
         with col_f3:
             sort_by = st.selectbox(
                 "Sort by",
                 options=['Abs_Variance', 'COA', 'Net_Variance'],
                 index=0
             )
-        
+
         # Filter data
         filtered_coa = coa_recon[
             (coa_recon['Status'].isin(status_filter)) &
             (coa_recon['Abs_Variance'] >= min_variance)
         ].sort_values(sort_by, ascending=(sort_by == 'COA'))
-        
+
         st.dataframe(
             filtered_coa[[
                 'COA', 'Account_Name', 'Manual_Debit', 'Manual_Credit', 'Manual_Net',
@@ -1149,33 +1495,33 @@ def main():
             use_container_width=True,
             height=500
         )
-        
+
         st.download_button(
             label="📥 Download Filtered COA Data (CSV)",
             data=filtered_coa.to_csv(index=False),
             file_name=f"coa_reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
-    
-    with tab3:
+
+    with tab_txn:
         st.markdown("### Transaction-Level Detail")
-        
+
         # COA selector
         selected_coa = st.selectbox(
             "Select COA to drill down",
             options=['All'] + sorted(coa_recon['COA'].dropna().astype(int).unique().tolist()),
             index=0
         )
-        
+
         if selected_coa != 'All':
             txn_filtered = engine.reconcile_transaction_level(
-                df_manual_clean, 
-                df_daftra_clean, 
+                df_manual_clean,
+                df_daftra_clean,
                 float(selected_coa)
             )
         else:
             txn_filtered = txn_detail
-        
+
         st.dataframe(
             txn_filtered.style.format({
                 'Debit': '{:,.2f}',
@@ -1185,8 +1531,8 @@ def main():
             use_container_width=True,
             height=500
         )
-    
-    with tab4:
+
+    with tab_audit:
         st.markdown("### 📜 Audit Trail")
         st.markdown('<div class="audit-badge">SHA-256 Verified</div>', unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)

@@ -17,6 +17,10 @@ plotly>=5.18.0
 
 # Utilities
 python-dateutil>=2.8.2
+python-dotenv>=1.0.0
+
+# AI Integration
+groq>=0.4.0
 
 # Optional: For fuzzy matching (future enhancement)
 # rapidfuzz>=3.6.0
