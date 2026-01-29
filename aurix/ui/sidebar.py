@@ -74,38 +74,17 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
 
         groq_api_key = os.getenv("GROQ_API_KEY")
 
-        # Status indicators
-        statuses = []
-        if groq_api_key and LANGCHAIN_AVAILABLE:
-            statuses.append(("LangChain + Groq", True))
-        else:
-            statuses.append(("LangChain + Groq", False))
+        # Status indicators using native Streamlit
+        statuses = [
+            ("LangChain + Groq", bool(groq_api_key and LANGCHAIN_AVAILABLE)),
+            ("ML Anomaly (sklearn)", SKLEARN_AVAILABLE),
+            ("Multi-Agent (CrewAI)", CREWAI_AVAILABLE),
+        ]
 
-        statuses.append(("ML Anomaly (sklearn)", SKLEARN_AVAILABLE))
-        statuses.append(("Multi-Agent (CrewAI)", CREWAI_AVAILABLE))
-
-        status_html = ""
         for name, ok in statuses:
-            color = "#2E7D32" if ok else "#BDBDBD"
-            icon = "&#9679;" if ok else "&#9675;"
+            icon = "🟢" if ok else "⚪"
             label = "Active" if ok else "Inactive"
-            status_html += f"""
-            <div style="display: flex; align-items: center; justify-content: space-between;
-                        padding: 0.35rem 0; font-size: 0.8rem;">
-                <span style="color: #424242; font-weight: 500;">{name}</span>
-                <span style="color: {color}; font-weight: 600; font-size: 0.72rem;
-                             display: flex; align-items: center; gap: 0.25rem;">
-                    {icon} {label}
-                </span>
-            </div>
-            """
-
-        st.markdown(f"""
-        <div style="background: white; border-radius: 10px; padding: 0.75rem 1rem;
-                    box-shadow: 0 1px 6px rgba(0,0,0,0.06);">
-            {status_html}
-        </div>
-        """, unsafe_allow_html=True)
+            st.markdown(f"{icon} **{name}** — {label}")
 
         if not groq_api_key:
             st.caption("Set GROQ_API_KEY in .env for AI features")
