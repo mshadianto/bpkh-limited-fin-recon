@@ -25,7 +25,23 @@ docker build -t aurix-reconciliation .
 docker run -p 8501:8501 aurix-reconciliation
 ```
 
-No test suite exists. No linter or formatter is configured.
+No linter or formatter is configured.
+
+```bash
+# Run all tests (117 tests)
+pytest
+
+# Run a single test file
+pytest tests/test_engine.py
+
+# Run tests by name pattern
+pytest -k "test_coa_level"
+
+# Verbose traceback
+pytest --tb=long
+```
+
+Tests use pytest with fixtures in `tests/conftest.py`. LLM-dependent tests are mocked (no API keys needed). All tests run offline.
 
 ## Architecture
 
