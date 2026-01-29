@@ -27,47 +27,20 @@ def render_ai_analysis_tab(
         st.info("Set GROQ_API_KEY in your .env file to enable AI features.")
         return
 
-    # Initialize session state
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
-    # --- Header Banner ---
+    # --- Header metrics ---
     match_rate = (summary['matched_count'] + summary['tolerance_count']) / summary['total_coa_accounts'] * 100
     anomaly_count_display = len(st.session_state.get('ai_anomalies', []))
-    high_count = sum(1 for a in st.session_state.get('ai_anomalies', []) if a.get('severity') == 'HIGH')
+    health = "Excellent" if match_rate >= 95 else "Good" if match_rate >= 80 else "Attention"
 
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #0D47A1 0%, #1565C0 50%, #1976D2 100%);
-                padding: 1.5rem 2rem; border-radius: 12px; margin-bottom: 1.5rem;
-                box-shadow: 0 4px 20px rgba(13, 71, 161, 0.3);">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-            <div>
-                <h2 style="color: white; margin: 0; font-weight: 700; font-size: 1.5rem;">
-                    AI-Powered Analysis
-                </h2>
-                <p style="color: #BBDEFB; margin: 0.25rem 0 0 0; font-size: 0.9rem;">
-                    Phase 2 &amp; 3: LangChain + ML Anomaly + Multi-Agent
-                </p>
-            </div>
-            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-                <div style="text-align: center;">
-                    <div style="color: white; font-size: 1.5rem; font-weight: 700;">{match_rate:.0f}%</div>
-                    <div style="color: #BBDEFB; font-size: 0.75rem;">Match Rate</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="color: {'#FF8A80' if high_count > 0 else '#A5D6A7'}; font-size: 1.5rem; font-weight: 700;">{anomaly_count_display}</div>
-                    <div style="color: #BBDEFB; font-size: 0.75rem;">Anomalies</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="color: {'#A5D6A7' if match_rate >= 95 else '#FFE082' if match_rate >= 80 else '#FF8A80'}; font-size: 1.5rem; font-weight: 700;">
-                        {'Excellent' if match_rate >= 95 else 'Good' if match_rate >= 80 else 'Attention'}
-                    </div>
-                    <div style="color: #BBDEFB; font-size: 0.75rem;">Health</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    col_h1, col_h2, col_h3 = st.columns(3)
+    col_h1.metric("Match Rate", f"{match_rate:.0f}%")
+    col_h2.metric("Anomalies Detected", anomaly_count_display)
+    col_h3.metric("Health Status", health)
+
+    st.markdown("---")
 
     # --- Sub-Tabs ---
     sub_tab_labels = ["AI Insights", "ML Anomalies", "Variance Forecast", "Root Cause Analysis"]
@@ -76,23 +49,18 @@ def render_ai_analysis_tab(
 
     sub_tabs = st.tabs(sub_tab_labels)
 
-    # ===== Sub-Tab 1: AI Insights + Chat =====
     with sub_tabs[0]:
         _render_insights_subtab(api_key, summary, coa_recon)
 
-    # ===== Sub-Tab 2: ML Anomalies =====
     with sub_tabs[1]:
         _render_ml_anomalies_subtab(coa_recon)
 
-    # ===== Sub-Tab 3: Variance Forecast =====
     with sub_tabs[2]:
         _render_forecast_subtab(df_manual_clean, df_daftra_clean)
 
-    # ===== Sub-Tab 4: Root Cause Analysis =====
     with sub_tabs[3]:
         _render_root_cause_subtab(api_key, coa_recon, txn_detail)
 
-    # ===== Sub-Tab 5: Multi-Agent Report =====
     if CREWAI_AVAILABLE:
         with sub_tabs[4]:
             _render_multi_agent_subtab(api_key, coa_recon, txn_detail, summary)
@@ -115,24 +83,13 @@ def _render_insights_subtab(api_key: str, summary: Dict, coa_recon: pd.DataFrame
     col_ai1, col_ai2 = st.columns([3, 2])
 
     with col_ai1:
-        # Generate insights
+        st.markdown("#### Auto-Generated Insights")
+
         if 'ai_insights' not in st.session_state:
             with st.spinner("Generating AI insights..."):
                 st.session_state.ai_insights = analyzer.generate_insights(summary, coa_recon)
 
-        st.markdown(f"""
-        <div style="background: white; border-radius: 12px; overflow: hidden;
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem;">
-            <div style="background: linear-gradient(90deg, #1B5E20, #2E7D32);
-                        padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 1.25rem;">&#128161;</span>
-                <span style="color: white; font-weight: 600; font-size: 1rem;">Auto-Generated Insights</span>
-            </div>
-            <div style="padding: 1.25rem; color: #212121; line-height: 1.7; font-size: 0.92rem;">
-                {st.session_state.ai_insights.replace(chr(10), '<br>')}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(st.session_state.ai_insights)
 
         if st.button("Regenerate Insights", key="regen_insights"):
             with st.spinner("Regenerating..."):
@@ -140,7 +97,6 @@ def _render_insights_subtab(api_key: str, summary: Dict, coa_recon: pd.DataFrame
             st.rerun()
 
     with col_ai2:
-        # Anomaly detection (rule-based)
         if 'ai_anomalies' not in st.session_state:
             with st.spinner("Detecting anomalies..."):
                 st.session_state.ai_anomalies = analyzer.detect_anomalies(coa_recon, summary)
@@ -148,43 +104,17 @@ def _render_insights_subtab(api_key: str, summary: Dict, coa_recon: pd.DataFrame
         _render_anomaly_card(st.session_state.ai_anomalies)
 
     # --- Chat Section ---
-    st.markdown("""
-    <div style="margin-top: 1.5rem;">
-        <div style="background: white; border-radius: 12px; overflow: hidden;
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
-            <div style="background: linear-gradient(90deg, #4527A0, #5E35B1);
-                        padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 1.25rem;">&#128172;</span>
-                <span style="color: white; font-weight: 600; font-size: 1rem;">Chat with AI Assistant</span>
-                <span style="color: #D1C4E9; font-size: 0.8rem; margin-left: 0.5rem;">Tanya apa saja tentang hasil reconciliation</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("#### Chat with AI Assistant")
+    st.caption("Tanya apa saja tentang hasil reconciliation")
 
     # Chat history display
     if st.session_state.chat_history:
-        chat_html = '<div style="background: #FAFAFA; border-left: 1px solid #E0E0E0; border-right: 1px solid #E0E0E0; padding: 1rem 1.25rem; max-height: 400px; overflow-y: auto;">'
         for chat in st.session_state.chat_history[-5:]:
-            chat_html += f"""
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
-                <div style="background: #E3F2FD; color: #0D47A1; padding: 0.6rem 1rem;
-                            border-radius: 12px 12px 2px 12px; max-width: 80%;
-                            font-size: 0.88rem; line-height: 1.5;">
-                    {chat['question']}
-                </div>
-            </div>
-            <div style="display: flex; justify-content: flex-start; margin-bottom: 1rem;">
-                <div style="background: white; color: #212121; padding: 0.6rem 1rem;
-                            border-radius: 12px 12px 12px 2px; max-width: 80%;
-                            font-size: 0.88rem; line-height: 1.6; border: 1px solid #E0E0E0;
-                            box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                    {chat['answer'].replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """
-        chat_html += '</div>'
-        st.markdown(chat_html, unsafe_allow_html=True)
+            with st.chat_message("user"):
+                st.markdown(chat['question'])
+            with st.chat_message("assistant"):
+                st.markdown(chat['answer'])
 
     # Chat input
     col_input, col_btn = st.columns([5, 1])
@@ -209,12 +139,11 @@ def _render_insights_subtab(api_key: str, summary: Dict, coa_recon: pd.DataFrame
 
 
 def _render_anomaly_card(anomalies):
-    """Render anomaly detection using separate st.markdown calls to avoid HTML size limits."""
+    """Render anomaly detection using native Streamlit components."""
     high_count = sum(1 for a in anomalies if a['severity'] == 'HIGH')
     med_count = sum(1 for a in anomalies if a['severity'] == 'MEDIUM')
     low_count = sum(1 for a in anomalies if a['severity'] == 'LOW')
 
-    # Header — small HTML, renders reliably
     badge_parts = []
     if high_count > 0:
         badge_parts.append(f"**{high_count} HIGH**")
@@ -229,7 +158,6 @@ def _render_anomaly_card(anomalies):
         st.success("No anomalies detected. All reconciliation entries look normal.")
         return
 
-    # Render each anomaly as a separate small markdown call
     severity_icons = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}
 
     for anomaly in anomalies:
@@ -268,7 +196,7 @@ def _render_ml_anomalies_subtab(coa_recon: pd.DataFrame):
             st.session_state.ml_anomalies = detector.detect_all(coa_recon)
 
     if 'ml_anomalies' not in st.session_state:
-        st.info("Click 'Run ML Anomaly Detection' to analyze data with machine learning models.")
+        st.info("Click **Run ML Anomaly Detection** to analyze data with machine learning models.")
         return
 
     ml_anomalies = st.session_state.ml_anomalies
@@ -290,33 +218,24 @@ def _render_ml_anomalies_subtab(coa_recon: pd.DataFrame):
 
     st.markdown("---")
 
-    # Anomaly cards
+    # Anomaly list — native markdown per anomaly
+    severity_icons = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}
+
     for anomaly in ml_anomalies:
         sev = anomaly['severity']
-        bg_color = {"HIGH": "#FFEBEE", "MEDIUM": "#FFF3E0", "LOW": "#FFFDE7"}.get(sev, "#F5F5F5")
-        border_color = {"HIGH": "#C62828", "MEDIUM": "#F57C00", "LOW": "#F9A825"}.get(sev, "#999")
+        icon = severity_icons.get(sev, "⚪")
         method = anomaly.get('method', 'unknown')
         method_label = "Z-Score" if method == 'z_score' else "IsolationForest" if method == 'isolation_forest' else method
 
-        st.markdown(f"""
-        <div style="background: {bg_color}; padding: 1rem; border-radius: 8px;
-                    margin-bottom: 0.75rem; border-left: 4px solid {border_color}; color: #212121;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
-                <span style="font-weight: 700; font-size: 0.9rem;">{anomaly['type']}</span>
-                <div style="display: flex; gap: 0.4rem;">
-                    <span style="background: {border_color}; color: white; padding: 0.1rem 0.5rem;
-                                 border-radius: 10px; font-size: 0.7rem; font-weight: 700;">{sev}</span>
-                    <span style="background: #E0E0E0; color: #424242; padding: 0.1rem 0.5rem;
-                                 border-radius: 10px; font-size: 0.7rem; font-weight: 500;">{method_label}</span>
-                </div>
-            </div>
-            <div style="font-size: 0.85rem; color: #424242; line-height: 1.5;">{anomaly['description']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"{icon} **{sev}** | {anomaly['type']} · `{method_label}`\n\n"
+            f"{anomaly['description']}"
+        )
 
     # Scatter plot: anomaly score vs variance
     if_anomalies = [a for a in ml_anomalies if a.get('method') == 'isolation_forest']
     if if_anomalies:
+        st.markdown("---")
         st.markdown("#### Isolation Forest: Anomaly Score vs Net Variance")
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -338,7 +257,9 @@ def _render_ml_anomalies_subtab(coa_recon: pd.DataFrame):
             xaxis_title="Net Variance (SAR)",
             yaxis_title="Anomaly Score (lower = more anomalous)",
             height=400,
-            margin=dict(t=30, b=60, l=60, r=40)
+            margin=dict(t=30, b=60, l=60, r=40),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -375,7 +296,7 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
                 st.session_state.forecast_rate = {"error": "Insufficient data"}
 
     if 'forecast_result' not in st.session_state:
-        st.info("Click 'Generate Forecast' to predict future variance trends from monthly data.")
+        st.info("Click **Generate Forecast** to predict future variance trends from monthly data.")
         return
 
     forecast = st.session_state.forecast_result
@@ -389,7 +310,6 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
 
     # Trend metrics
     col1, col2, col3 = st.columns(3)
-    trend_icons = {"increasing": "red", "decreasing": "green", "stable": "blue"}
     col1.metric("Trend Direction", forecast['trend_direction'].capitalize())
     col2.metric("Slope (SAR/month)", f"{forecast['slope']:,.2f}")
     col3.metric("R-squared", f"{forecast['r_squared']:.3f}")
@@ -407,7 +327,7 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
         x=hist_months, y=hist_values,
         mode='lines+markers',
         name='Historical',
-        line=dict(color='#1B5E20', width=2),
+        line=dict(color='#1D1D1F', width=2),
         marker=dict(size=8)
     ))
     fig.add_trace(go.Scatter(
@@ -415,7 +335,7 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
         y=[hist_values[-1]] + fc_values,
         mode='lines+markers',
         name='Forecast',
-        line=dict(color='#F57C00', width=2, dash='dash'),
+        line=dict(color='#FF9500', width=2, dash='dash'),
         marker=dict(size=8, symbol='diamond')
     ))
     fig.update_layout(
@@ -424,6 +344,8 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
         yaxis_title="Total Absolute Variance (SAR)",
         height=400,
         margin=dict(t=50, b=60, l=80, r=40),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
         legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5)
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -440,13 +362,13 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
         fig2.add_trace(go.Scatter(
             x=r_hist, y=r_vals,
             mode='lines+markers', name='Historical',
-            line=dict(color='#0D47A1', width=2), marker=dict(size=8)
+            line=dict(color='#0071E3', width=2), marker=dict(size=8)
         ))
         fig2.add_trace(go.Scatter(
             x=[r_hist[-1]] + r_fc_months,
             y=[r_vals[-1]] + r_fc_vals,
             mode='lines+markers', name='Forecast',
-            line=dict(color='#F57C00', width=2, dash='dash'), marker=dict(size=8, symbol='diamond')
+            line=dict(color='#FF9500', width=2, dash='dash'), marker=dict(size=8, symbol='diamond')
         ))
         fig2.update_layout(
             title="Match Rate Over Time (%)",
@@ -454,6 +376,8 @@ def _render_forecast_subtab(df_manual_clean, df_daftra_clean):
             yaxis_title="Match Rate (%)",
             height=350,
             margin=dict(t=50, b=60, l=60, r=40),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
             legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5)
         )
         st.plotly_chart(fig2, use_container_width=True)
@@ -506,18 +430,8 @@ def _render_root_cause_subtab(api_key: str, coa_recon: pd.DataFrame, txn_detail:
         coa_code = row.get('COA')
         key = f'rc_single_{int(coa_code)}' if pd.notna(coa_code) else None
         if key and key in st.session_state:
-            st.markdown(f"""
-            <div style="background: white; border-radius: 12px; overflow: hidden;
-                        box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-top: 1rem;">
-                <div style="background: linear-gradient(90deg, #1565C0, #1976D2);
-                            padding: 0.75rem 1.25rem;">
-                    <span style="color: white; font-weight: 600;">Root Cause: COA {int(coa_code)}</span>
-                </div>
-                <div style="padding: 1.25rem; color: #212121; line-height: 1.7; font-size: 0.92rem;">
-                    {st.session_state[key].replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"**Root Cause Analysis: COA {int(coa_code)}**")
+            st.markdown(st.session_state[key])
 
     # Batch analysis
     st.markdown("---")
@@ -550,16 +464,16 @@ def _render_multi_agent_subtab(
     """CrewAI multi-agent orchestration for comprehensive audit report."""
     from aurix.agents.orchestrator import AurixCrew
 
-    st.markdown("""
-    <div style="background: #E8F5E9; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; color: #212121;">
-        <strong>Multi-Agent System</strong> — Three specialized AI agents collaborate to produce a comprehensive audit report:
-        <ul style="margin: 0.5rem 0 0 1rem;">
-            <li><strong>Reconciliation Analyst</strong> - Analyzes variances and match patterns</li>
-            <li><strong>Fraud Detection Specialist</strong> - Examines anomalies and suspicious patterns</li>
-            <li><strong>Audit Report Writer</strong> - Synthesizes findings into executive report</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        "Three specialized AI agents collaborate to produce a comprehensive audit report:"
+    )
+    st.markdown(
+        "- **Reconciliation Analyst** — Analyzes variances and match patterns\n"
+        "- **Fraud Detection Specialist** — Examines anomalies and suspicious patterns\n"
+        "- **Audit Report Writer** — Synthesizes findings into executive report"
+    )
+
+    st.markdown("---")
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -579,7 +493,7 @@ def _render_multi_agent_subtab(
         return crew
 
     if run_full:
-        with st.spinner("Running full multi-agent analysis (this may take a few moments)..."):
+        with st.spinner("Running full multi-agent analysis..."):
             crew = _setup_crew()
             result = crew.run()
             if result['success']:
@@ -606,18 +520,7 @@ def _render_multi_agent_subtab(
     if 'crew_report' in st.session_state and st.session_state.crew_report:
         report_text = str(st.session_state.crew_report)
         st.markdown("#### Full Multi-Agent Report")
-        st.markdown(f"""
-        <div style="background: white; border-radius: 12px; overflow: hidden;
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
-            <div style="background: linear-gradient(90deg, #1B5E20, #2E7D32);
-                        padding: 0.75rem 1.25rem;">
-                <span style="color: white; font-weight: 600;">Audit Report (Multi-Agent)</span>
-            </div>
-            <div style="padding: 1.25rem; color: #212121; line-height: 1.7; font-size: 0.92rem;">
-                {report_text.replace(chr(10), '<br>')}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(report_text)
 
         st.download_button(
             label="Download Report",

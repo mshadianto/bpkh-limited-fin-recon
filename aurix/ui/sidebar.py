@@ -13,14 +13,9 @@ from aurix.agents import CREWAI_AVAILABLE
 def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], ReconciliationConfig]:
     """Render sidebar with file upload and configuration options."""
     with st.sidebar:
-        # Logo / brand
-        st.markdown("""
-        <div style="text-align: center; padding: 0.5rem 0 1rem;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.25rem;">&#9878;&#65039;</div>
-            <div style="font-weight: 800; font-size: 1.1rem; color: #1B5E20; letter-spacing: -0.5px;">AURIX</div>
-            <div style="font-size: 0.7rem; color: #999; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;">Reconciliation</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("&nbsp;")
+        st.markdown("**AURIX** Reconciliation")
+        st.caption("BPKH Limited")
 
         st.markdown("---")
         st.markdown("### Data Source")
@@ -60,43 +55,37 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
         )
         config = ReconciliationConfig(tolerance_amount=tolerance)
 
-        st.markdown("---")
-        st.markdown("### Quick Stats")
-        if df_manual is not None:
-            with st.expander("Jurnal Manual Preview"):
-                st.dataframe(df_manual.head(3), use_container_width=True)
-        if df_daftra is not None:
-            with st.expander("Daftra Preview"):
-                st.dataframe(df_daftra.head(3), use_container_width=True)
+        if df_manual is not None or df_daftra is not None:
+            st.markdown("---")
+            st.markdown("### Preview")
+            if df_manual is not None:
+                with st.expander("Jurnal Manual"):
+                    st.dataframe(df_manual.head(3), use_container_width=True)
+            if df_daftra is not None:
+                with st.expander("Daftra"):
+                    st.dataframe(df_daftra.head(3), use_container_width=True)
 
         st.markdown("---")
-        st.markdown("### System Status")
+        st.markdown("### System")
 
         groq_api_key = os.getenv("GROQ_API_KEY")
 
-        # Status indicators using native Streamlit
         statuses = [
             ("LangChain + Groq", bool(groq_api_key and LANGCHAIN_AVAILABLE)),
-            ("ML Anomaly (sklearn)", SKLEARN_AVAILABLE),
-            ("Multi-Agent (CrewAI)", CREWAI_AVAILABLE),
+            ("ML Anomaly", SKLEARN_AVAILABLE),
+            ("Multi-Agent", CREWAI_AVAILABLE),
         ]
 
         for name, ok in statuses:
             icon = "🟢" if ok else "⚪"
-            label = "Active" if ok else "Inactive"
-            st.markdown(f"{icon} **{name}** — {label}")
+            st.caption(f"{icon}  {name}")
 
         if not groq_api_key:
-            st.caption("Set GROQ_API_KEY in .env for AI features")
+            st.caption("Set `GROQ_API_KEY` in .env")
 
-        # Developer footer
         st.markdown("---")
-        st.markdown("""
-        <div class="dev-footer">
-            <div class="dev-name">MS Hadianto</div>
-            <div class="dev-role">Audit Committee @BPKH 2026</div>
-            <div class="dev-version">AURIX v2.0.0</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.caption("MS Hadianto")
+        st.caption("Audit Committee @BPKH 2026")
+        st.caption("AURIX v2.0.0")
 
     return df_manual, df_daftra, config

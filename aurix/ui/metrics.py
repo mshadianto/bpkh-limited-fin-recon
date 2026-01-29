@@ -5,51 +5,22 @@ from typing import Dict, Any
 
 
 def render_metrics(summary: Dict[str, Any]):
-    """Render key metrics cards with icons."""
+    """Render key metrics cards — clean Apple style."""
     col1, col2, col3, col4, col5 = st.columns(5)
 
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <span class="metric-icon">&#128202;</span>
-            <div class="metric-value">{summary['total_coa_accounts']}</div>
-            <div class="metric-label">Total COA</div>
-        </div>
-        """, unsafe_allow_html=True)
+    cards = [
+        (col1, summary['total_coa_accounts'], "Total COA", "#1D1D1F"),
+        (col2, summary['matched_count'], "Matched", "#34C759"),
+        (col3, summary['tolerance_count'], "Tolerance", "#30D158"),
+        (col4, summary['variance_count'], "Variance", "#FF9500"),
+        (col5, summary['unmatched_manual'] + summary['unmatched_daftra'], "Unmatched", "#FF3B30"),
+    ]
 
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card" style="border-left-color: #2E7D32;">
-            <span class="metric-icon">&#9989;</span>
-            <div class="metric-value" style="color: #2E7D32;">{summary['matched_count']}</div>
-            <div class="metric-label">Fully Matched</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card" style="border-left-color: #81C784;">
-            <span class="metric-icon">&#128309;</span>
-            <div class="metric-value" style="color: #558B2F;">{summary['tolerance_count']}</div>
-            <div class="metric-label">Within Tolerance</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown(f"""
-        <div class="metric-card" style="border-left-color: #F57C00;">
-            <span class="metric-icon">&#9888;&#65039;</span>
-            <div class="metric-value" style="color: #E65100;">{summary['variance_count']}</div>
-            <div class="metric-label">With Variance</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col5:
-        total_unmatched = summary['unmatched_manual'] + summary['unmatched_daftra']
-        st.markdown(f"""
-        <div class="metric-card" style="border-left-color: #C62828;">
-            <span class="metric-icon">&#128308;</span>
-            <div class="metric-value" style="color: #C62828;">{total_unmatched}</div>
-            <div class="metric-label">Unmatched</div>
-        </div>
-        """, unsafe_allow_html=True)
+    for col, value, label, color in cards:
+        with col:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value" style="color: {color};">{value}</div>
+                <div class="metric-label">{label}</div>
+            </div>
+            """, unsafe_allow_html=True)

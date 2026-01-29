@@ -14,9 +14,8 @@ def render_transactions_tab(
     df_daftra_clean: pd.DataFrame,
 ):
     """Render the Transaction Detail tab with COA drill-down."""
-    st.markdown("### Transaction-Level Detail")
+    st.markdown("#### Transaction-Level Detail")
 
-    # COA selector
     selected_coa = st.selectbox(
         "Select COA to drill down",
         options=['All'] + sorted(coa_recon['COA'].dropna().astype(int).unique().tolist()),
@@ -31,6 +30,8 @@ def render_transactions_tab(
         )
     else:
         txn_filtered = txn_detail
+
+    st.caption(f"{len(txn_filtered)} transactions")
 
     st.dataframe(
         txn_filtered.style.format({

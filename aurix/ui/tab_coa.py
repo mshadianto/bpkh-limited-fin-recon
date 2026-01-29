@@ -7,14 +7,8 @@ from datetime import datetime
 
 def render_coa_tab(coa_recon: pd.DataFrame):
     """Render the COA Reconciliation tab with filters and data table."""
-    st.markdown("""
-    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
-        <h3 style="margin: 0; color: #1B5E20;">COA-Level Reconciliation</h3>
-        <span style="background: #E8F5E9; color: #2E7D32; padding: 0.2rem 0.75rem;
-                     border-radius: 20px; font-size: 0.75rem; font-weight: 600;">
-            """ + str(len(coa_recon)) + """ accounts</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"#### COA-Level Reconciliation")
+    st.caption(f"{len(coa_recon)} accounts")
 
     # Filters
     col_f1, col_f2, col_f3 = st.columns(3)

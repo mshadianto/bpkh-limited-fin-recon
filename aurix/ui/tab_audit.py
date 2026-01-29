@@ -9,26 +9,11 @@ from aurix.config import AuditLogEntry
 
 def render_audit_tab(audit_log: List[AuditLogEntry]):
     """Render the Audit Trail tab."""
-    st.markdown("""
-    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-        <h3 style="margin: 0; color: #1B5E20;">Audit Trail</h3>
-        <div class="audit-badge">SHA-256 Verified</div>
-    </div>
-    """, unsafe_allow_html=True)
+    col_a1, col_a2 = st.columns(2)
+    col_a1.metric("Total Events", len(audit_log))
+    col_a2.metric("Integrity", "SHA-256 Verified")
 
-    st.markdown(f"""
-    <div style="background: white; border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1rem;
-                box-shadow: 0 1px 8px rgba(0,0,0,0.05); display: flex; gap: 2rem; flex-wrap: wrap;">
-        <div>
-            <span style="color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Total Events</span>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #1B5E20;">{len(audit_log)}</div>
-        </div>
-        <div>
-            <span style="color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Integrity</span>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #2E7D32;">Verified</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
 
     audit_df = pd.DataFrame([
         {

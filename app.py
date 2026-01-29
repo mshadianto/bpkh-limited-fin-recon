@@ -40,13 +40,9 @@ def main():
     df_manual, df_daftra, config = render_sidebar()
 
     if df_manual is None or df_daftra is None:
-        st.markdown("""
-        <div class="empty-state">
-            <span class="empty-icon">&#128203;</span>
-            <h2>Upload Your Reconciliation Data</h2>
-            <p>Upload an Excel file with <strong>Jurnal Manual</strong> and <strong>Daftra</strong> sheets to begin</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("&nbsp;")
+        st.markdown("### Upload Your Reconciliation Data")
+        st.caption("Upload an Excel file with **Jurnal Manual** and **Daftra** sheets to begin.")
 
         with st.expander("Expected Data Format"):
             col1, col2 = st.columns(2)
@@ -83,9 +79,8 @@ def main():
         summary = engine.generate_variance_summary(coa_recon)
 
     # Render metrics
-    st.markdown("### Reconciliation Summary")
     render_metrics(summary)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("&nbsp;", unsafe_allow_html=True)
 
     # Check AI availability
     groq_api_key = os.getenv("GROQ_API_KEY")
@@ -129,14 +124,10 @@ def main():
         render_audit_tab(engine.audit_log)
 
     # Export section
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class="export-section">
-        <h3>&#128229; Export Full Report</h3>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("#### Export Full Report")
 
-    col_exp1, col_exp2, col_exp3 = st.columns(3)
+    col_exp1, col_exp2 = st.columns(2)
 
     with col_exp1:
         excel_buffer = ReportExporter.export_to_excel(
@@ -166,17 +157,6 @@ def main():
             mime="application/json",
             use_container_width=True
         )
-
-    with col_exp3:
-        st.markdown("""
-        <div style="background: white; border-radius: 10px; padding: 1rem; text-align: center;
-                    box-shadow: 0 1px 6px rgba(0,0,0,0.06); height: 100%;">
-            <div style="font-size: 1.5rem; margin-bottom: 0.4rem;">&#128218;</div>
-            <div style="color: #424242; font-size: 0.85rem; line-height: 1.5;">
-                Executive Summary, COA Reconciliation, Transaction Detail, Audit Trail
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
