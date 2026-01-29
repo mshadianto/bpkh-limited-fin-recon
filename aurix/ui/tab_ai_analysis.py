@@ -611,27 +611,28 @@ def _render_multi_agent_subtab(
             crew = _setup_crew()
             result = crew.run()
             if result['success']:
-                st.session_state.crew_report = result['report']
+                st.session_state.crew_report = str(result['report'])
             else:
                 st.error(f"Crew execution failed: {result['error']}")
 
     if run_recon:
         with st.spinner("Running Reconciliation Agent..."):
             crew = _setup_crew()
-            st.session_state.crew_recon = crew.run_single_agent("recon")
+            st.session_state.crew_recon = str(crew.run_single_agent("recon"))
 
     if run_fraud:
         with st.spinner("Running Fraud Detection Agent..."):
             crew = _setup_crew()
-            st.session_state.crew_fraud = crew.run_single_agent("fraud")
+            st.session_state.crew_fraud = str(crew.run_single_agent("fraud"))
 
     if run_report:
         with st.spinner("Running Report Writer Agent..."):
             crew = _setup_crew()
-            st.session_state.crew_report_single = crew.run_single_agent("report")
+            st.session_state.crew_report_single = str(crew.run_single_agent("report"))
 
     # Display results
-    if 'crew_report' in st.session_state:
+    if 'crew_report' in st.session_state and st.session_state.crew_report:
+        report_text = str(st.session_state.crew_report)
         st.markdown("#### Full Multi-Agent Report")
         st.markdown(f"""
         <div style="background: white; border-radius: 12px; overflow: hidden;
@@ -641,14 +642,14 @@ def _render_multi_agent_subtab(
                 <span style="color: white; font-weight: 600;">Audit Report (Multi-Agent)</span>
             </div>
             <div style="padding: 1.25rem; color: #212121; line-height: 1.7; font-size: 0.92rem;">
-                {st.session_state.crew_report.replace(chr(10), '<br>')}
+                {report_text.replace(chr(10), '<br>')}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
         st.download_button(
             label="Download Report",
-            data=st.session_state.crew_report,
+            data=report_text,
             file_name="aurix_multi_agent_report.txt",
             mime="text/plain",
             key="dl_crew_report"
@@ -657,4 +658,4 @@ def _render_multi_agent_subtab(
     for key, label in [('crew_recon', 'Reconciliation Agent'), ('crew_fraud', 'Fraud Agent'), ('crew_report_single', 'Report Agent')]:
         if key in st.session_state:
             with st.expander(f"{label} Output"):
-                st.markdown(st.session_state[key])
+                st.markdown(str(st.session_state[key]))
