@@ -43,6 +43,8 @@ pytest --tb=long
 
 Tests use pytest with fixtures in `tests/conftest.py`. LLM-dependent tests are mocked (no API keys needed). All tests run offline.
 
+**CI:** GitHub Actions (`.github/workflows/ci.yml`) runs pytest on every push and PR to `main` using Python 3.11.
+
 ## Architecture
 
 **Modular Streamlit application** — `app.py` is a thin entry point (~130 lines) that wires together the `aurix/` package.
