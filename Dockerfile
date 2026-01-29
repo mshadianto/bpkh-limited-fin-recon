@@ -5,11 +5,14 @@
 
 FROM python:3.11-slim
 
+# Cache-bust arg to force rebuild
+ARG CACHEBUST=1
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_HEADLESS=true
 
 # Set work directory
 WORKDIR /app
@@ -33,11 +36,11 @@ COPY . .
 RUN useradd -m -u 1000 aurix && chown -R aurix:aurix /app
 USER aurix
 
-# Expose port
+# Railway injects $PORT at runtime; default to 8501 for local Docker
+ENV PORT=8501
 EXPOSE 8501
 
-# Health check (uses $PORT which Railway overrides)
-HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
+# No HEALTHCHECK — let Railway handle it externally
 
-# Run the application on $PORT (Railway injects its own PORT value)
-CMD sh -c "streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0"
+# Start: use shell form so $PORT is expanded at runtime
+CMD streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
