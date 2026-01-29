@@ -40,24 +40,34 @@ def main():
     df_manual, df_daftra, config = render_sidebar()
 
     if df_manual is None or df_daftra is None:
-        st.info("Please upload an Excel file with 'Jurnal Manual' and 'Daftra' sheets to begin reconciliation.")
+        st.markdown("""
+        <div class="empty-state">
+            <span class="empty-icon">&#128203;</span>
+            <h2>Upload Your Reconciliation Data</h2>
+            <p>Upload an Excel file with <strong>Jurnal Manual</strong> and <strong>Daftra</strong> sheets to begin</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         with st.expander("Expected Data Format"):
-            st.markdown("""
-            **Jurnal Manual Sheet:**
-            - `Tanggal`: Transaction date
-            - `COA Daftra`: Account code (numeric)
-            - `Debit-SAR`: Debit amount
-            - `Kredit-SAR`: Credit amount
-            - `Uraian`: Description
-
-            **Daftra Sheet:**
-            - `Date`: Transaction date
-            - `Account Code`: Account code (numeric)
-            - `Debit`: Debit amount
-            - `Credit`: Credit amount
-            - `Description`: Transaction description
-            """)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("""
+                **Jurnal Manual Sheet:**
+                - `Tanggal` — Transaction date
+                - `COA Daftra` — Account code (numeric)
+                - `Debit-SAR` — Debit amount
+                - `Kredit-SAR` — Credit amount
+                - `Uraian` — Description
+                """)
+            with col2:
+                st.markdown("""
+                **Daftra Sheet:**
+                - `Date` — Transaction date
+                - `Account Code` — Account code (numeric)
+                - `Debit` — Debit amount
+                - `Credit` — Credit amount
+                - `Description` — Transaction description
+                """)
         return
 
     # Initialize engine and run reconciliation
@@ -119,8 +129,12 @@ def main():
         render_audit_tab(engine.audit_log)
 
     # Export section
-    st.markdown("---")
-    st.markdown("### Export Full Report")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="export-section">
+        <h3>&#128229; Export Full Report</h3>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_exp1, col_exp2, col_exp3 = st.columns(3)
 
@@ -132,7 +146,8 @@ def main():
             label="Download Excel Report",
             data=excel_buffer,
             file_name=f"AURIX_Reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
         )
 
     with col_exp2:
@@ -148,11 +163,20 @@ def main():
             label="Download JSON Summary",
             data=json_report,
             file_name=f"AURIX_Summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json"
+            mime="application/json",
+            use_container_width=True
         )
 
     with col_exp3:
-        st.info("Full report includes: Executive Summary, COA Reconciliation, Transaction Detail, and Audit Trail")
+        st.markdown("""
+        <div style="background: white; border-radius: 10px; padding: 1rem; text-align: center;
+                    box-shadow: 0 1px 6px rgba(0,0,0,0.06); height: 100%;">
+            <div style="font-size: 1.5rem; margin-bottom: 0.4rem;">&#128218;</div>
+            <div style="color: #424242; font-size: 0.85rem; line-height: 1.5;">
+                Executive Summary, COA Reconciliation, Transaction Detail, Audit Trail
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

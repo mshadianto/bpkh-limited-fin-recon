@@ -6,13 +6,24 @@ import pandas as pd
 from typing import Tuple, Optional
 
 from aurix.config import ReconciliationConfig
-from aurix.ai import LANGCHAIN_AVAILABLE
+from aurix.ai import LANGCHAIN_AVAILABLE, SKLEARN_AVAILABLE
+from aurix.agents import CREWAI_AVAILABLE
 
 
 def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], ReconciliationConfig]:
     """Render sidebar with file upload and configuration options."""
     with st.sidebar:
-        st.markdown("### 📁 Data Source")
+        # Logo / brand
+        st.markdown("""
+        <div style="text-align: center; padding: 0.5rem 0 1rem;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.25rem;">&#9878;&#65039;</div>
+            <div style="font-weight: 800; font-size: 1.1rem; color: #1B5E20; letter-spacing: -0.5px;">AURIX</div>
+            <div style="font-size: 0.7rem; color: #999; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;">Reconciliation</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("### Data Source")
 
         uploaded_file = st.file_uploader(
             "Upload Excel File",
@@ -59,21 +70,53 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
                 st.dataframe(df_daftra.head(3), use_container_width=True)
 
         st.markdown("---")
-        groq_api_key = os.getenv("GROQ_API_KEY")
-        st.markdown("### AI Assistant")
-        if groq_api_key and LANGCHAIN_AVAILABLE:
-            st.success("AI Features Enabled")
-        elif not LANGCHAIN_AVAILABLE:
-            st.warning("Install: `pip install langchain-groq`")
-        else:
-            st.info("Set GROQ_API_KEY in .env")
+        st.markdown("### System Status")
 
+        groq_api_key = os.getenv("GROQ_API_KEY")
+
+        # Status indicators
+        statuses = []
+        if groq_api_key and LANGCHAIN_AVAILABLE:
+            statuses.append(("LangChain + Groq", True))
+        else:
+            statuses.append(("LangChain + Groq", False))
+
+        statuses.append(("ML Anomaly (sklearn)", SKLEARN_AVAILABLE))
+        statuses.append(("Multi-Agent (CrewAI)", CREWAI_AVAILABLE))
+
+        status_html = ""
+        for name, ok in statuses:
+            color = "#2E7D32" if ok else "#BDBDBD"
+            icon = "&#9679;" if ok else "&#9675;"
+            label = "Active" if ok else "Inactive"
+            status_html += f"""
+            <div style="display: flex; align-items: center; justify-content: space-between;
+                        padding: 0.35rem 0; font-size: 0.8rem;">
+                <span style="color: #424242; font-weight: 500;">{name}</span>
+                <span style="color: {color}; font-weight: 600; font-size: 0.72rem;
+                             display: flex; align-items: center; gap: 0.25rem;">
+                    {icon} {label}
+                </span>
+            </div>
+            """
+
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 0.75rem 1rem;
+                    box-shadow: 0 1px 6px rgba(0,0,0,0.06);">
+            {status_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+        if not groq_api_key:
+            st.caption("Set GROQ_API_KEY in .env for AI features")
+
+        # Developer footer
         st.markdown("---")
         st.markdown("""
-        <div style="text-align: center; color: #666; font-size: 0.8rem;">
-            <p><strong>AURIX v2.0.0</strong></p>
-            <p>Built for BPKH Audit Committee</p>
-            <p>Phase 2 & 3: AI + Multi-Agent</p>
+        <div class="dev-footer">
+            <div class="dev-name">MS Hadianto</div>
+            <div class="dev-role">Audit Committee @BPKH 2026</div>
+            <div class="dev-version">AURIX v2.0.0</div>
         </div>
         """, unsafe_allow_html=True)
 
