@@ -209,69 +209,41 @@ def _render_insights_subtab(api_key: str, summary: Dict, coa_recon: pd.DataFrame
 
 
 def _render_anomaly_card(anomalies):
-    """Render the anomaly detection card as single HTML block."""
-    severity_styles = {
-        "HIGH": {"bg": "#FFEBEE", "border": "#C62828", "badge_bg": "#C62828", "badge_text": "white", "label": "HIGH"},
-        "MEDIUM": {"bg": "#FFF3E0", "border": "#F57C00", "badge_bg": "#F57C00", "badge_text": "white", "label": "MEDIUM"},
-        "LOW": {"bg": "#FFFDE7", "border": "#F9A825", "badge_bg": "#F9A825", "badge_text": "#212121", "label": "LOW"}
-    }
-
+    """Render anomaly detection using separate st.markdown calls to avoid HTML size limits."""
     high_count = sum(1 for a in anomalies if a['severity'] == 'HIGH')
     med_count = sum(1 for a in anomalies if a['severity'] == 'MEDIUM')
     low_count = sum(1 for a in anomalies if a['severity'] == 'LOW')
 
-    if anomalies:
-        anomaly_body = ""
-        for anomaly in anomalies:
-            s = severity_styles.get(anomaly['severity'], severity_styles['LOW'])
-            amount_str = f"SAR {anomaly.get('amount', 0):,.2f}" if anomaly.get('amount') else ""
-            coa_str = str(anomaly.get('coa', ''))
+    # Header — small HTML, renders reliably
+    badge_parts = []
+    if high_count > 0:
+        badge_parts.append(f"**{high_count} HIGH**")
+    if med_count > 0:
+        badge_parts.append(f"**{med_count} MED**")
+    if low_count > 0:
+        badge_parts.append(f"**{low_count} LOW**")
 
-            anomaly_body += f"""
-            <div style="background: {s['bg']}; padding: 0.85rem 1rem; border-radius: 8px;
-                        margin-bottom: 0.6rem; border-left: 4px solid {s['border']}; color: #212121;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem;">
-                    <div style="display: flex; align-items: center; gap: 0.4rem;">
-                        <span style="background: {s['badge_bg']}; color: {s['badge_text']};
-                                     padding: 0.1rem 0.5rem; border-radius: 10px;
-                                     font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">{s['label']}</span>
-                        <span style="font-weight: 600; font-size: 0.88rem;">{anomaly['type']}</span>
-                    </div>
-                    {'<span style="background: white; color: #555; padding: 0.1rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 500; font-family: monospace;">COA ' + coa_str + '</span>' if coa_str and coa_str != 'N/A' else ''}
-                </div>
-                <div style="font-size: 0.85rem; color: #424242; line-height: 1.5;">{anomaly['description']}</div>
-                {'<div style="margin-top: 0.35rem; font-size: 0.8rem; color: #616161; font-weight: 500;">' + amount_str + '</div>' if amount_str else ''}
-            </div>
-            """
-    else:
-        anomaly_body = """
-        <div style="text-align: center; padding: 2rem 1rem;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">&#9989;</div>
-            <div style="color: #2E7D32; font-weight: 600; font-size: 1rem;">No Anomalies Detected</div>
-            <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">All reconciliation entries look normal</div>
-        </div>
-        """
+    st.markdown(f"#### Anomaly Detection ({' / '.join(badge_parts) if badge_parts else 'None'})")
 
-    st.markdown(f"""
-    <div style="background: white; border-radius: 12px; overflow: hidden;
-                box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem;">
-        <div style="background: linear-gradient(90deg, #BF360C, #E65100);
-                    padding: 0.75rem 1.25rem; display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 1.25rem;">&#128737;</span>
-                <span style="color: white; font-weight: 600; font-size: 1rem;">Anomaly Detection</span>
-            </div>
-            <div style="display: flex; gap: 0.5rem;">
-                {'<span style="background: #C62828; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(high_count) + ' HIGH</span>' if high_count > 0 else ''}
-                {'<span style="background: #F57C00; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(med_count) + ' MED</span>' if med_count > 0 else ''}
-                {'<span style="background: #F9A825; color: #212121; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(low_count) + ' LOW</span>' if low_count > 0 else ''}
-            </div>
-        </div>
-        <div style="padding: 1rem; max-height: 480px; overflow-y: auto;">
-            {anomaly_body}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    if not anomalies:
+        st.success("No anomalies detected. All reconciliation entries look normal.")
+        return
+
+    # Render each anomaly as a separate small markdown call
+    severity_icons = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}
+
+    for anomaly in anomalies:
+        sev = anomaly['severity']
+        icon = severity_icons.get(sev, "⚪")
+        coa_str = str(anomaly.get('coa', ''))
+        coa_tag = f" `COA {coa_str}`" if coa_str and coa_str != 'N/A' else ""
+        amount = anomaly.get('amount', 0)
+        amount_str = f" — SAR {amount:,.2f}" if amount else ""
+
+        st.markdown(
+            f"{icon} **{sev}** | {anomaly['type']}{coa_tag}\n\n"
+            f"{anomaly['description']}{amount_str}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────
