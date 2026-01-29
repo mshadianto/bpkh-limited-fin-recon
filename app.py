@@ -1397,7 +1397,8 @@ def main():
                         st.markdown(f"""
                         <div style="background: {'#FFEBEE' if anomaly['severity'] == 'HIGH' else '#FFF3E0' if anomaly['severity'] == 'MEDIUM' else '#FFFDE7'};
                                     padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;
-                                    border-left: 4px solid {'#C62828' if anomaly['severity'] == 'HIGH' else '#F57C00' if anomaly['severity'] == 'MEDIUM' else '#FBC02D'};">
+                                    border-left: 4px solid {'#C62828' if anomaly['severity'] == 'HIGH' else '#F57C00' if anomaly['severity'] == 'MEDIUM' else '#FBC02D'};
+                                    color: #212121;">
                             <strong>{severity_color} {anomaly['type']}</strong><br>
                             <span style="font-size: 0.9rem;">{anomaly['description']}</span>
                         </div>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AURIX Reconciliation - Automated financial reconciliation tool for BPKH (Badan Pengelola Keuangan Haji) that matches Daftra accounting system exports against Manual Journal entries. Built for Islamic Finance compliance (PSAK 109, AAOIFI).
+AURIX Reconciliation - Automated financial reconciliation tool for BPKH (Badan Pengelola Keuangan Haji) that matches Daftra accounting system exports against Manual Journal entries. Built for Islamic Finance compliance (PSAK 109, AAOIFI, OJK Regulations, BPKH Internal Audit Standards).
 
 ## Commands
 
@@ -25,62 +25,67 @@ docker build -t aurix-reconciliation .
 docker run -p 8501:8501 aurix-reconciliation
 ```
 
+No test suite exists. No linter or formatter is configured.
+
 ## Architecture
 
 **Single monolithic Streamlit application** (`app.py`, ~1,600 lines) with four core classes:
 
-- `ReconciliationEngine` - Core reconciliation logic: aggregates data by COA, performs outer join matching, calculates variances
-- `ReconciliationVisualizer` - Plotly chart generation (donut, bar, waterfall, heatmap)
-- `ReportExporter` - Multi-sheet Excel export with styling
-- `AIAnalyzer` - Groq LLM integration for insights, anomaly detection, and chat
+- `ReconciliationEngine` (line ~113) - Core logic: cleans data, aggregates by COA, outer-join matches, calculates variances, maintains audit log with SHA-256 checksums
+- `ReconciliationVisualizer` (line ~423) - Plotly chart generation (status donut, comparison bar, variance waterfall, variance heatmap)
+- `ReportExporter` (line ~606) - Multi-sheet Excel export (Executive Summary, COA Reconciliation, Transaction Detail, Audit Trail) with BPKH-branded styling
+- `AIAnalyzer` (line ~761) - Optional Groq LLM integration (`llama-3.3-70b-versatile`). Groq import is wrapped in try/except; the app runs without it. Requires `GROQ_API_KEY` env var (copy `.env.example` to `.env`).
 
 **Data flow:**
 ```
-Daftra Export + Manual Journal → Data Cleaning → Reconciliation Engine → Dashboard/Reports
+Excel Upload (Manual Journal + Daftra Export)
+  → Data Cleaning (column standardization, pd.to_numeric COA conversion, date parsing, NaN row exclusion)
+  → ReconciliationEngine.reconcile_coa_level() (groupby COA → outer join → variance calc → status assignment)
+  → ReconciliationEngine.reconcile_transaction_level() (detail-level matching)
+  → Dashboard (Plotly charts) + AI Analysis (optional) + Excel/JSON/CSV Export
 ```
 
-**Key dataclasses:** `ReconciliationConfig`, `AuditLogEntry`, `ReconciliationResult`
+**Key dataclasses:** `ReconciliationConfig` (tolerance & column mappings), `AuditLogEntry` (SHA-256 checksummed), `ReconciliationResult` (summary + detail DataFrames + counts)
 
-**Status enum values:** `MATCHED`, `TOLERANCE`, `VARIANCE`, `UNMATCHED_MANUAL`, `UNMATCHED_DAFTRA`
+**ReconciliationStatus enum** (display values include emoji prefixes):
+- `MATCHED` = "Matched" — zero variance
+- `TOLERANCE` = "Within Tolerance" — |Net_Variance| <= tolerance_amount (default 1.0 SAR)
+- `VARIANCE` = "Variance" — exceeds tolerance
+- `UNMATCHED_MANUAL` = "Only in Manual" — COA exists only in manual journal
+- `UNMATCHED_DAFTRA` = "Only in Daftra" — COA exists only in Daftra export
 
 ## Reconciliation Logic
 
 1. Aggregate Manual data by `COA Daftra` → SUM(Debit, Credit, Net)
 2. Aggregate Daftra data by `Account Code` → SUM(Debit, Credit, Net)
-3. Outer join on COA code
-4. Calculate variances (Manual - Daftra)
-5. Apply status based on tolerance (default: 1.0 SAR)
+3. Outer join on COA code (both sides converted to numeric first)
+4. Calculate variances: Debit_Variance, Credit_Variance, Net_Variance = Manual - Daftra
+5. Assign status based on tolerance (default: 1.0 SAR absolute threshold)
 
 ## Data Schema
 
-**Manual Journal columns:** `Tanggal`, `COA Daftra`, `COA Daftra Name`, `Debit-SAR`, `Kredit-SAR`, `Nilai Mutasi`
+**Manual Journal columns (required):** `Tanggal` (date), `COA Daftra` (numeric COA), `Debit-SAR`, `Kredit-SAR`, `Nilai Mutasi`
 
-**Daftra Export columns:** `Date`, `Account Code`, `Account`, `Debit`, `Credit`, `Nilai Mutasi`
+**Daftra Export columns (required):** `Date`, `Account Code` (numeric COA), `Debit`, `Credit`, `Nilai Mutasi`
 
-COA codes are auto-converted to numeric via `pd.to_numeric()` for matching.
+**COA Reconciliation output columns:** `COA`, `Account_Name`, `Manual_Debit/Credit/Net`, `Manual_TxnCount`, `Daftra_Debit/Credit/Net`, `Daftra_TxnCount`, `Debit_Variance`, `Credit_Variance`, `Net_Variance`, `Abs_Variance`, `Status`
+
+Column name mappings are defined in `ReconciliationConfig` defaults. COA codes are auto-converted to numeric via `pd.to_numeric()` for join matching.
 
 ## Deployment
 
 - **Port:** 8501 (Streamlit default)
 - **Health check:** `/_stcore/health`
-- **Railway:** Uses Dockerfile with dynamic $PORT
-- **Docker user:** `aurix:aurix` (non-root, UID 1000)
+- **Railway:** Uses Dockerfile with dynamic `$PORT` (see `railway.toml`)
+- **Docker:** Python 3.11-slim base, non-root user `aurix:aurix` (UID 1000)
 
 ## AI Features (Groq Integration)
 
-Requires `GROQ_API_KEY` environment variable. Copy `.env.example` to `.env` and add your key.
+The `AIAnalyzer` class is **optional** — the UI gracefully degrades to 4 tabs instead of 5 when Groq is unavailable. Model: `llama-3.3-70b-versatile`, temperature 0.3.
 
-**Model:** `llama-3.3-70b-versatile`
-
-**Features:**
-- **Auto-Insights** - AI-generated analysis of reconciliation results (3-5 bullet points)
-- **Anomaly Detection** - Rule-based + AI detection of unusual patterns (HIGH/MEDIUM/LOW severity)
-- **Chat Assistant** - Natural language Q&A about reconciliation data in Bahasa Indonesia
-
-**AIAnalyzer methods:**
-- `generate_insights(summary, coa_recon)` - Generate bullet-point insights
-- `detect_anomalies(coa_recon, summary)` - Return list of anomaly dicts
-- `chat(question, summary, coa_recon)` - Answer user questions
+- `generate_insights(summary, coa_recon)` — 3-5 bullet-point analysis
+- `detect_anomalies(coa_recon, summary)` — Hybrid: rule-based detection (>3 std dev, >SAR 10K unmatched, debit/credit mismatches) + AI enrichment. Returns top 10 sorted by severity (HIGH/MEDIUM/LOW).
+- `chat(question, summary, coa_recon)` — Q&A in Bahasa Indonesia with reconciliation context
 
 ## Brand Colors
 
@@ -88,8 +93,7 @@ Requires `GROQ_API_KEY` environment variable. Copy `.env.example` to `.env` and 
 primary = "#1B5E20"    # Islamic Green
 secondary = "#FFD700"  # Gold
 accent = "#0D47A1"     # Deep Blue
+success = "#2E7D32"    # Green
+warning = "#F57C00"    # Orange
+danger = "#C62828"     # Red
 ```
-
-## Compliance Standards
-
-PSAK 109 (Zakat Accounting), AAOIFI Standards, OJK Regulations, BPKH Internal Audit Standards
