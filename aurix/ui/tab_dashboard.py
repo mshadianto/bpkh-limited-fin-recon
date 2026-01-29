@@ -29,11 +29,13 @@ def render_dashboard_tab(summary: Dict[str, Any], coa_recon: pd.DataFrame):
         fig_heatmap = ReconciliationVisualizer.create_variance_heatmap(coa_recon)
         st.plotly_chart(fig_heatmap, use_container_width=True)
 
-    # Key Insights — using native Streamlit
+    # Key Insights
     st.markdown("---")
+    st.markdown("#### Key Insights")
 
     match_rate = (summary['matched_count'] + summary['tolerance_count']) / summary['total_coa_accounts'] * 100
     health = "Excellent" if match_rate >= 95 else "Good" if match_rate >= 80 else "Needs Attention"
+    health_color = "#34C759" if match_rate >= 95 else "#FF9500" if match_rate >= 80 else "#FF3B30"
 
     col_a, col_b, col_c = st.columns(3)
 

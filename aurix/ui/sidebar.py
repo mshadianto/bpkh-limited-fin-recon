@@ -13,9 +13,15 @@ from aurix.agents import CREWAI_AVAILABLE
 def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], ReconciliationConfig]:
     """Render sidebar with file upload and configuration options."""
     with st.sidebar:
-        st.markdown("&nbsp;")
-        st.markdown("**AURIX** Reconciliation")
-        st.caption("BPKH Limited")
+        # Brand
+        st.markdown("""
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-name">
+                <span class="sidebar-brand-accent">A</span>URIX
+            </div>
+            <div class="sidebar-brand-sub">RECONCILIATION ENGINE</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown("### Data Source")
@@ -77,15 +83,26 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
         ]
 
         for name, ok in statuses:
-            icon = "🟢" if ok else "⚪"
-            st.caption(f"{icon}  {name}")
+            dot_class = "sys-dot-on" if ok else "sys-dot-off"
+            st.markdown(f"""
+            <div class="sys-status">
+                <div class="sys-dot {dot_class}"></div>
+                <span class="sys-label">{name}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
         if not groq_api_key:
             st.caption("Set `GROQ_API_KEY` in .env")
 
         st.markdown("---")
-        st.caption("MS Hadianto")
-        st.caption("Audit Committee @BPKH 2026")
-        st.caption("AURIX v2.0.0")
+
+        # Developer info
+        st.markdown("""
+        <div class="sidebar-dev">
+            <div class="sidebar-dev-name">MS Hadianto</div>
+            <div class="sidebar-dev-role">Audit Committee @ BPKH 2026</div>
+            <div class="sidebar-dev-badge">AURIX v2.0.0</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     return df_manual, df_daftra, config

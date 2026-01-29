@@ -40,9 +40,14 @@ def main():
     df_manual, df_daftra, config = render_sidebar()
 
     if df_manual is None or df_daftra is None:
-        st.markdown("&nbsp;")
-        st.markdown("### Upload Your Reconciliation Data")
-        st.caption("Upload an Excel file with **Jurnal Manual** and **Daftra** sheets to begin.")
+        st.markdown("""
+        <div class="empty-state">
+            <span class="empty-icon">&#9878;&#65039;</span>
+            <h2>Upload Your Reconciliation Data</h2>
+            <p>Upload an Excel file with <strong>Jurnal Manual</strong> and <strong>Daftra</strong>
+            sheets to begin automated reconciliation</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         with st.expander("Expected Data Format"):
             col1, col2 = st.columns(2)
