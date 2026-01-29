@@ -1451,11 +1451,43 @@ def main():
                     }
                 }
 
-                # Anomaly header card
+                # Build full anomaly card as single HTML block
                 high_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'HIGH')
                 med_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'MEDIUM')
                 low_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'LOW')
-                total_anomalies = len(st.session_state.ai_anomalies)
+
+                # Build anomaly body content
+                if st.session_state.ai_anomalies:
+                    anomaly_body = ""
+                    for anomaly in st.session_state.ai_anomalies:
+                        s = severity_styles.get(anomaly['severity'], severity_styles['LOW'])
+                        amount_str = f"SAR {anomaly.get('amount', 0):,.2f}" if anomaly.get('amount') else ""
+                        coa_str = str(anomaly.get('coa', ''))
+
+                        anomaly_body += f"""
+                        <div style="background: {s['bg']}; padding: 0.85rem 1rem; border-radius: 8px;
+                                    margin-bottom: 0.6rem; border-left: 4px solid {s['border']}; color: #212121;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="background: {s['badge_bg']}; color: {s['badge_text']};
+                                                 padding: 0.1rem 0.5rem; border-radius: 10px;
+                                                 font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">{s['label']}</span>
+                                    <span style="font-weight: 600; font-size: 0.88rem;">{anomaly['type']}</span>
+                                </div>
+                                {'<span style="background: white; color: #555; padding: 0.1rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 500; font-family: monospace;">COA ' + coa_str + '</span>' if coa_str and coa_str != 'N/A' else ''}
+                            </div>
+                            <div style="font-size: 0.85rem; color: #424242; line-height: 1.5;">{anomaly['description']}</div>
+                            {'<div style="margin-top: 0.35rem; font-size: 0.8rem; color: #616161; font-weight: 500;">' + amount_str + '</div>' if amount_str else ''}
+                        </div>
+                        """
+                else:
+                    anomaly_body = """
+                    <div style="text-align: center; padding: 2rem 1rem;">
+                        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">✅</div>
+                        <div style="color: #2E7D32; font-weight: 600; font-size: 1rem;">No Anomalies Detected</div>
+                        <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">All reconciliation entries look normal</div>
+                    </div>
+                    """
 
                 st.markdown(f"""
                 <div style="background: white; border-radius: 12px; overflow: hidden;
@@ -1473,41 +1505,10 @@ def main():
                         </div>
                     </div>
                     <div style="padding: 1rem; max-height: 480px; overflow-y: auto;">
+                        {anomaly_body}
+                    </div>
+                </div>
                 """, unsafe_allow_html=True)
-
-                if st.session_state.ai_anomalies:
-                    anomaly_cards = ""
-                    for anomaly in st.session_state.ai_anomalies:
-                        s = severity_styles.get(anomaly['severity'], severity_styles['LOW'])
-                        amount_str = f"SAR {anomaly.get('amount', 0):,.2f}" if anomaly.get('amount') else ""
-                        coa_str = str(anomaly.get('coa', ''))
-
-                        anomaly_cards += f"""
-                        <div style="background: {s['bg']}; padding: 0.85rem 1rem; border-radius: 8px;
-                                    margin-bottom: 0.6rem; border-left: 4px solid {s['border']}; color: #212121;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem;">
-                                <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                    <span style="background: {s['badge_bg']}; color: {s['badge_text']};
-                                                 padding: 0.1rem 0.5rem; border-radius: 10px;
-                                                 font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">{s['label']}</span>
-                                    <span style="font-weight: 600; font-size: 0.88rem;">{anomaly['type']}</span>
-                                </div>
-                                {'<span style="background: white; color: #555; padding: 0.1rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 500; font-family: monospace;">COA ' + coa_str + '</span>' if coa_str and coa_str != 'N/A' else ''}
-                            </div>
-                            <div style="font-size: 0.85rem; color: #424242; line-height: 1.5;">{anomaly['description']}</div>
-                            {'<div style="margin-top: 0.35rem; font-size: 0.8rem; color: #616161; font-weight: 500;">' + amount_str + '</div>' if amount_str else ''}
-                        </div>
-                        """
-                    st.markdown(anomaly_cards + "</div></div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("""
-                        <div style="text-align: center; padding: 2rem 1rem;">
-                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">✅</div>
-                            <div style="color: #2E7D32; font-weight: 600; font-size: 1rem;">No Anomalies Detected</div>
-                            <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">All reconciliation entries look normal</div>
-                        </div>
-                    </div></div>
-                    """, unsafe_allow_html=True)
 
             # --- Chat Section ---
             st.markdown("""
