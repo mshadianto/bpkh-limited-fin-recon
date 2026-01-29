@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AURIX Reconciliation - Automated financial reconciliation tool for BPKH (Badan Pengelola Keuangan Haji) that matches Daftra accounting system exports against Manual Journal entries. Built for Islamic Finance compliance (PSAK 109, AAOIFI, OJK Regulations, BPKH Internal Audit Standards).
+AURIX Reconciliation (v2.0.0) — Automated financial reconciliation tool for BPKH (Badan Pengelola Keuangan Haji) that matches Daftra accounting system exports against Manual Journal entries. Built for Islamic Finance compliance (PSAK 109, AAOIFI, OJK Regulations, BPKH Internal Audit Standards).
 
 ## Commands
 
@@ -29,38 +29,75 @@ No test suite exists. No linter or formatter is configured.
 
 ## Architecture
 
-**Single monolithic Streamlit application** (`app.py`, ~1,600 lines) with four core classes:
+**Modular Streamlit application** — `app.py` is a thin entry point (~130 lines) that wires together the `aurix/` package.
 
-- `ReconciliationEngine` (line ~113) - Core logic: cleans data, aggregates by COA, outer-join matches, calculates variances, maintains audit log with SHA-256 checksums
-- `ReconciliationVisualizer` (line ~423) - Plotly chart generation (status donut, comparison bar, variance waterfall, variance heatmap)
-- `ReportExporter` (line ~606) - Multi-sheet Excel export (Executive Summary, COA Reconciliation, Transaction Detail, Audit Trail) with BPKH-branded styling
-- `AIAnalyzer` (line ~761) - Optional Groq LLM integration (`llama-3.3-70b-versatile`). Groq import is wrapped in try/except; the app runs without it. Requires `GROQ_API_KEY` env var (copy `.env.example` to `.env`).
+### Package Structure
 
-**Data flow:**
+```
+app.py                          # Entry point: setup → sidebar → reconcile → render tabs
+aurix/
+  config.py                     # ReconciliationConfig, ReconciliationStatus (enum), AuditLogEntry, ReconciliationResult dataclasses
+  engine.py                     # ReconciliationEngine: data cleaning, COA-level & transaction-level reconciliation
+  exporter.py                   # ReportExporter: multi-sheet Excel export with openpyxl formatting
+  ai/
+    __init__.py                 # Feature flags: LANGCHAIN_AVAILABLE, SKLEARN_AVAILABLE (try/except imports)
+    base.py                     # LLMProvider: wraps ChatGroq (llama-3.3-70b-versatile, temp 0.3)
+    analyzer.py                 # AIAnalyzer: LLM-powered insights, anomaly detection, chat (Bahasa Indonesia)
+    ml_anomaly.py               # MLAnomalyDetector: IsolationForest + Z-score anomaly detection
+    forecasting.py              # VarianceForecaster: monthly variance trend prediction
+    root_cause.py               # RootCauseAnalyzer: LLM-based root cause analysis per COA
+    tools.py                    # LangChain @tool functions for CrewAI agents (shared _DATA_STORE)
+  agents/
+    orchestrator.py             # AurixCrew: CrewAI Crew that coordinates all agents
+    recon_agent.py              # Reconciliation Analysis Agent (CrewAI Agent)
+    fraud_agent.py              # Fraud Detection Agent (CrewAI Agent)
+    report_agent.py             # Audit Report Writer Agent (CrewAI Agent)
+  ui/
+    styles.py                   # Page config, CSS, header rendering
+    sidebar.py                  # File upload, config controls, data loading
+    metrics.py                  # Summary metric cards
+    tab_dashboard.py            # Plotly charts (status donut, comparison bar, variance waterfall, heatmap)
+    tab_ai_analysis.py          # AI insights, anomaly detection, chat, multi-agent tabs
+    tab_coa.py                  # COA reconciliation data table
+    tab_transactions.py         # Transaction detail view
+    tab_audit.py                # Audit trail log
+```
+
+### Data Flow
+
 ```
 Excel Upload (Manual Journal + Daftra Export)
-  → Data Cleaning (column standardization, pd.to_numeric COA conversion, date parsing, NaN row exclusion)
-  → ReconciliationEngine.reconcile_coa_level() (groupby COA → outer join → variance calc → status assignment)
-  → ReconciliationEngine.reconcile_transaction_level() (detail-level matching)
-  → Dashboard (Plotly charts) + AI Analysis (optional) + Excel/JSON/CSV Export
+  → aurix.ui.sidebar: loads sheets, returns DataFrames + ReconciliationConfig
+  → aurix.engine.ReconciliationEngine:
+      clean_manual_data() / clean_daftra_data() → column standardization, pd.to_numeric COA, date parsing
+      reconcile_coa_level() → groupby COA → outer join → variance calc → status assignment
+      reconcile_transaction_level() → detail-level combined view
+      generate_variance_summary() → summary dict
+  → UI tabs: Dashboard (Plotly) + AI Analysis (optional) + COA + Transactions + Audit
+  → Export: Excel (ReportExporter) / JSON / CSV
 ```
 
-**Key dataclasses:** `ReconciliationConfig` (tolerance & column mappings), `AuditLogEntry` (SHA-256 checksummed), `ReconciliationResult` (summary + detail DataFrames + counts)
+### Key Dataclasses (aurix/config.py)
 
-**ReconciliationStatus enum** (display values include emoji prefixes):
-- `MATCHED` = "Matched" — zero variance
-- `TOLERANCE` = "Within Tolerance" — |Net_Variance| <= tolerance_amount (default 1.0 SAR)
-- `VARIANCE` = "Variance" — exceeds tolerance
-- `UNMATCHED_MANUAL` = "Only in Manual" — COA exists only in manual journal
-- `UNMATCHED_DAFTRA` = "Only in Daftra" — COA exists only in Daftra export
+- `ReconciliationConfig` — tolerance thresholds + column name mappings for both data sources
+- `AuditLogEntry` — SHA-256 checksummed audit entries
+- `ReconciliationResult` — summary/detail DataFrames + status counts
+
+### ReconciliationStatus Enum
+
+Values include emoji prefixes (e.g., `"✅ Matched"`):
+- `MATCHED` — zero variance
+- `TOLERANCE` — |Net_Variance| <= tolerance_amount (default 1.0 SAR)
+- `VARIANCE` — exceeds tolerance
+- `UNMATCHED_MANUAL` / `UNMATCHED_DAFTRA` — COA exists in only one source
 
 ## Reconciliation Logic
 
-1. Aggregate Manual data by `COA Daftra` → SUM(Debit, Credit, Net)
-2. Aggregate Daftra data by `Account Code` → SUM(Debit, Credit, Net)
-3. Outer join on COA code (both sides converted to numeric first)
-4. Calculate variances: Debit_Variance, Credit_Variance, Net_Variance = Manual - Daftra
-5. Assign status based on tolerance (default: 1.0 SAR absolute threshold)
+1. Aggregate Manual by `COA Daftra` → SUM(Debit, Credit, Net)
+2. Aggregate Daftra by `Account Code` → SUM(Debit, Credit, Net)
+3. Outer join on COA code (both converted to numeric via `pd.to_numeric()`)
+4. Variances: Debit_Variance, Credit_Variance, Net_Variance = Manual - Daftra
+5. Status assigned based on tolerance (default: 1.0 SAR absolute threshold)
 
 ## Data Schema
 
@@ -68,9 +105,25 @@ Excel Upload (Manual Journal + Daftra Export)
 
 **Daftra Export columns (required):** `Date`, `Account Code` (numeric COA), `Debit`, `Credit`, `Nilai Mutasi`
 
-**COA Reconciliation output columns:** `COA`, `Account_Name`, `Manual_Debit/Credit/Net`, `Manual_TxnCount`, `Daftra_Debit/Credit/Net`, `Daftra_TxnCount`, `Debit_Variance`, `Credit_Variance`, `Net_Variance`, `Abs_Variance`, `Status`
+Column name mappings are defined in `ReconciliationConfig` defaults.
 
-Column name mappings are defined in `ReconciliationConfig` defaults. COA codes are auto-converted to numeric via `pd.to_numeric()` for join matching.
+## AI/ML Features (Optional)
+
+All AI features gracefully degrade — the app runs without Groq or scikit-learn. The UI shows 4 tabs instead of 5 when AI is unavailable.
+
+- **LLM backend:** Groq (`llama-3.3-70b-versatile`) via LangChain. Requires `GROQ_API_KEY` env var (copy `.env.example` to `.env`).
+- **Feature flags:** `LANGCHAIN_AVAILABLE` and `SKLEARN_AVAILABLE` in `aurix/ai/__init__.py` (set via try/except imports).
+- **AIAnalyzer** (`aurix/ai/analyzer.py`): insights, anomaly detection (hybrid rule-based + LLM), chat in Bahasa Indonesia.
+- **MLAnomalyDetector** (`aurix/ai/ml_anomaly.py`): IsolationForest + Z-score on variance columns.
+- **VarianceForecaster** (`aurix/ai/forecasting.py`): monthly variance trend prediction.
+- **RootCauseAnalyzer** (`aurix/ai/root_cause.py`): per-COA root cause analysis via LLM.
+
+### Multi-Agent System (Phase 3)
+
+CrewAI-based multi-agent architecture in `aurix/agents/`:
+- **AurixCrew** orchestrator coordinates three agents (recon, fraud, report) via sequential CrewAI Process.
+- Agents share data through LangChain `@tool` functions in `aurix/ai/tools.py` backed by a module-level `_DATA_STORE` dict.
+- All agents communicate findings in Bahasa Indonesia.
 
 ## Deployment
 
@@ -78,14 +131,7 @@ Column name mappings are defined in `ReconciliationConfig` defaults. COA codes a
 - **Health check:** `/_stcore/health`
 - **Railway:** Uses Dockerfile with dynamic `$PORT` (see `railway.toml`)
 - **Docker:** Python 3.11-slim base, non-root user `aurix:aurix` (UID 1000)
-
-## AI Features (Groq Integration)
-
-The `AIAnalyzer` class is **optional** — the UI gracefully degrades to 4 tabs instead of 5 when Groq is unavailable. Model: `llama-3.3-70b-versatile`, temperature 0.3.
-
-- `generate_insights(summary, coa_recon)` — 3-5 bullet-point analysis
-- `detect_anomalies(coa_recon, summary)` — Hybrid: rule-based detection (>3 std dev, >SAR 10K unmatched, debit/credit mismatches) + AI enrichment. Returns top 10 sorted by severity (HIGH/MEDIUM/LOW).
-- `chat(question, summary, coa_recon)` — Q&A in Bahasa Indonesia with reconciliation context
+- **Streamlit Cloud:** `.streamlit/config.toml` sets headless mode, disables CORS/XSRF for embedding
 
 ## Brand Colors
 
