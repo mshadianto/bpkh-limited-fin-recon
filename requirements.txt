@@ -30,6 +30,9 @@ scikit-learn>=1.4.0
 crewai>=0.80.0
 crewai-tools>=0.14.0
 
+# Testing
+pytest>=8.0.0
+
 # Optional: For fuzzy matching (future enhancement)
 # rapidfuzz>=3.6.0
 # fuzzywuzzy>=0.18.0

@@ -45,7 +45,7 @@ class AuditLogEntry:
 
     def __post_init__(self):
         """Generate checksum after initialization."""
-        content = f"{self.timestamp}{self.action}{json.dumps(self.details)}{self.user}"
+        content = f"{self.timestamp}{self.action}{json.dumps(self.details, default=str)}{self.user}"
         self.checksum = hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
