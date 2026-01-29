@@ -279,8 +279,8 @@ docker run -p 8501:8501 aurix-reconciliation
 
 ## 📞 Support
 
-**Developer:** KIM Consulting  
-**Contact:** Sopian (Senior Audit Committee - BPKH)  
+**Developer:** MS Hadianto | Audit Committee @BPKH  
+**Contact:** sopian@bpkh.go.id   
 **GitHub:** [@mshadianto](https://github.com/mshadianto)
 
 ---
