@@ -19,8 +19,16 @@ plotly>=5.18.0
 python-dateutil>=2.8.2
 python-dotenv>=1.0.0
 
-# AI Integration
-groq>=0.4.0
+# Phase 2: AI Integration (LangChain + Groq)
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+
+# Phase 2: ML Anomaly Detection & Forecasting
+scikit-learn>=1.4.0
+
+# Phase 3: Multi-Agent Architecture
+crewai>=0.80.0
+crewai-tools>=0.14.0
 
 # Optional: For fuzzy matching (future enhancement)
 # rapidfuzz>=3.6.0
