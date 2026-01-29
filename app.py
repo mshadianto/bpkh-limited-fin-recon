@@ -1360,79 +1360,214 @@ def main():
     # AI Analysis Tab (only if AI is available)
     if ai_analyzer:
         with tab2:
-            st.markdown("### 🤖 AI-Powered Analysis")
-
             # Initialize session state for chat history
             if 'chat_history' not in st.session_state:
                 st.session_state.chat_history = []
 
-            col_ai1, col_ai2 = st.columns(2)
+            # --- AI Tab Header Banner ---
+            match_rate = (summary['matched_count'] + summary['tolerance_count']) / summary['total_coa_accounts'] * 100
+            anomaly_count_display = len(st.session_state.get('ai_anomalies', []))
+            high_count = sum(1 for a in st.session_state.get('ai_anomalies', []) if a['severity'] == 'HIGH')
+
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #0D47A1 0%, #1565C0 50%, #1976D2 100%);
+                        padding: 1.5rem 2rem; border-radius: 12px; margin-bottom: 1.5rem;
+                        box-shadow: 0 4px 20px rgba(13, 71, 161, 0.3);">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="color: white; margin: 0; font-weight: 700; font-size: 1.5rem;">
+                            AI-Powered Analysis
+                        </h2>
+                        <p style="color: #BBDEFB; margin: 0.25rem 0 0 0; font-size: 0.9rem;">
+                            Intelligent insights powered by Llama 3.3 70B
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                        <div style="text-align: center;">
+                            <div style="color: white; font-size: 1.5rem; font-weight: 700;">{match_rate:.0f}%</div>
+                            <div style="color: #BBDEFB; font-size: 0.75rem;">Match Rate</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="color: {'#FF8A80' if high_count > 0 else '#A5D6A7'}; font-size: 1.5rem; font-weight: 700;">{anomaly_count_display}</div>
+                            <div style="color: #BBDEFB; font-size: 0.75rem;">Anomalies</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="color: {'#A5D6A7' if match_rate >= 95 else '#FFE082' if match_rate >= 80 else '#FF8A80'}; font-size: 1.5rem; font-weight: 700;">
+                                {'Excellent' if match_rate >= 95 else 'Good' if match_rate >= 80 else 'Attention'}
+                            </div>
+                            <div style="color: #BBDEFB; font-size: 0.75rem;">Health</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --- Insights & Anomaly Section ---
+            col_ai1, col_ai2 = st.columns([3, 2])
 
             with col_ai1:
-                st.markdown("#### 💡 Auto-Generated Insights")
+                # Generate insights
                 if 'ai_insights' not in st.session_state:
-                    with st.spinner("🔄 Generating AI insights..."):
+                    with st.spinner("Generating AI insights..."):
                         st.session_state.ai_insights = ai_analyzer.generate_insights(summary, coa_recon)
-                st.markdown(st.session_state.ai_insights)
 
-                if st.button("🔄 Regenerate Insights"):
-                    with st.spinner("🔄 Regenerating..."):
+                st.markdown(f"""
+                <div style="background: white; border-radius: 12px; overflow: hidden;
+                            box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem;">
+                    <div style="background: linear-gradient(90deg, #1B5E20, #2E7D32);
+                                padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.25rem;">💡</span>
+                        <span style="color: white; font-weight: 600; font-size: 1rem;">Auto-Generated Insights</span>
+                    </div>
+                    <div style="padding: 1.25rem; color: #212121; line-height: 1.7; font-size: 0.92rem;">
+                        {st.session_state.ai_insights.replace(chr(10), '<br>')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button("Regenerate Insights", key="regen_insights", icon="🔄"):
+                    with st.spinner("Regenerating..."):
                         st.session_state.ai_insights = ai_analyzer.generate_insights(summary, coa_recon)
                     st.rerun()
 
             with col_ai2:
-                st.markdown("#### ⚠️ Anomaly Detection")
+                # Generate anomalies
                 if 'ai_anomalies' not in st.session_state:
-                    with st.spinner("🔍 Detecting anomalies..."):
+                    with st.spinner("Detecting anomalies..."):
                         st.session_state.ai_anomalies = ai_analyzer.detect_anomalies(coa_recon, summary)
 
-                if st.session_state.ai_anomalies:
-                    for anomaly in st.session_state.ai_anomalies:
-                        severity_color = {
-                            "HIGH": "🔴",
-                            "MEDIUM": "🟠",
-                            "LOW": "🟡"
-                        }.get(anomaly['severity'], "⚪")
+                severity_styles = {
+                    "HIGH": {
+                        "bg": "#FFEBEE", "border": "#C62828", "badge_bg": "#C62828",
+                        "badge_text": "white", "icon": "🔴", "label": "HIGH"
+                    },
+                    "MEDIUM": {
+                        "bg": "#FFF3E0", "border": "#F57C00", "badge_bg": "#F57C00",
+                        "badge_text": "white", "icon": "🟠", "label": "MEDIUM"
+                    },
+                    "LOW": {
+                        "bg": "#FFFDE7", "border": "#F9A825", "badge_bg": "#F9A825",
+                        "badge_text": "#212121", "icon": "🟡", "label": "LOW"
+                    }
+                }
 
-                        st.markdown(f"""
-                        <div style="background: {'#FFEBEE' if anomaly['severity'] == 'HIGH' else '#FFF3E0' if anomaly['severity'] == 'MEDIUM' else '#FFFDE7'};
-                                    padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;
-                                    border-left: 4px solid {'#C62828' if anomaly['severity'] == 'HIGH' else '#F57C00' if anomaly['severity'] == 'MEDIUM' else '#FBC02D'};
-                                    color: #212121;">
-                            <strong>{severity_color} {anomaly['type']}</strong><br>
-                            <span style="font-size: 0.9rem;">{anomaly['description']}</span>
+                # Anomaly header card
+                high_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'HIGH')
+                med_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'MEDIUM')
+                low_anomalies = sum(1 for a in st.session_state.ai_anomalies if a['severity'] == 'LOW')
+                total_anomalies = len(st.session_state.ai_anomalies)
+
+                st.markdown(f"""
+                <div style="background: white; border-radius: 12px; overflow: hidden;
+                            box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem;">
+                    <div style="background: linear-gradient(90deg, #BF360C, #E65100);
+                                padding: 0.75rem 1.25rem; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">🛡️</span>
+                            <span style="color: white; font-weight: 600; font-size: 1rem;">Anomaly Detection</span>
                         </div>
-                        """, unsafe_allow_html=True)
+                        <div style="display: flex; gap: 0.5rem;">
+                            {'<span style="background: #C62828; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(high_anomalies) + ' HIGH</span>' if high_anomalies > 0 else ''}
+                            {'<span style="background: #F57C00; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(med_anomalies) + ' MED</span>' if med_anomalies > 0 else ''}
+                            {'<span style="background: #F9A825; color: #212121; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">' + str(low_anomalies) + ' LOW</span>' if low_anomalies > 0 else ''}
+                        </div>
+                    </div>
+                    <div style="padding: 1rem; max-height: 480px; overflow-y: auto;">
+                """, unsafe_allow_html=True)
+
+                if st.session_state.ai_anomalies:
+                    anomaly_cards = ""
+                    for anomaly in st.session_state.ai_anomalies:
+                        s = severity_styles.get(anomaly['severity'], severity_styles['LOW'])
+                        amount_str = f"SAR {anomaly.get('amount', 0):,.2f}" if anomaly.get('amount') else ""
+                        coa_str = str(anomaly.get('coa', ''))
+
+                        anomaly_cards += f"""
+                        <div style="background: {s['bg']}; padding: 0.85rem 1rem; border-radius: 8px;
+                                    margin-bottom: 0.6rem; border-left: 4px solid {s['border']}; color: #212121;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="background: {s['badge_bg']}; color: {s['badge_text']};
+                                                 padding: 0.1rem 0.5rem; border-radius: 10px;
+                                                 font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">{s['label']}</span>
+                                    <span style="font-weight: 600; font-size: 0.88rem;">{anomaly['type']}</span>
+                                </div>
+                                {'<span style="background: white; color: #555; padding: 0.1rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 500; font-family: monospace;">COA ' + coa_str + '</span>' if coa_str and coa_str != 'N/A' else ''}
+                            </div>
+                            <div style="font-size: 0.85rem; color: #424242; line-height: 1.5;">{anomaly['description']}</div>
+                            {'<div style="margin-top: 0.35rem; font-size: 0.8rem; color: #616161; font-weight: 500;">' + amount_str + '</div>' if amount_str else ''}
+                        </div>
+                        """
+                    st.markdown(anomaly_cards + "</div></div>", unsafe_allow_html=True)
                 else:
-                    st.success("✅ No significant anomalies detected!")
+                    st.markdown("""
+                        <div style="text-align: center; padding: 2rem 1rem;">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">✅</div>
+                            <div style="color: #2E7D32; font-weight: 600; font-size: 1rem;">No Anomalies Detected</div>
+                            <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">All reconciliation entries look normal</div>
+                        </div>
+                    </div></div>
+                    """, unsafe_allow_html=True)
 
-            st.markdown("---")
-            st.markdown("#### 💬 Chat with AI Assistant")
-            st.markdown("Tanya apa saja tentang hasil reconciliation Anda.")
+            # --- Chat Section ---
+            st.markdown("""
+            <div style="margin-top: 1.5rem;">
+                <div style="background: white; border-radius: 12px; overflow: hidden;
+                            box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+                    <div style="background: linear-gradient(90deg, #4527A0, #5E35B1);
+                                padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.25rem;">💬</span>
+                        <span style="color: white; font-weight: 600; font-size: 1rem;">Chat with AI Assistant</span>
+                        <span style="color: #D1C4E9; font-size: 0.8rem; margin-left: 0.5rem;">Tanya apa saja tentang hasil reconciliation</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            # Chat interface
-            user_question = st.text_input(
-                "Pertanyaan Anda:",
-                placeholder="Contoh: Jelaskan COA dengan variance terbesar...",
-                key="ai_chat_input"
-            )
-
-            if st.button("📤 Kirim", key="send_chat"):
-                if user_question:
-                    with st.spinner("🤔 Thinking..."):
-                        response = ai_analyzer.chat(user_question, summary, coa_recon)
-                        st.session_state.chat_history.append({
-                            "question": user_question,
-                            "answer": response
-                        })
-
-            # Display chat history
+            # Chat history display
             if st.session_state.chat_history:
-                st.markdown("#### 📜 Chat History")
-                for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):
-                    with st.expander(f"Q: {chat['question'][:50]}...", expanded=(i == 0)):
-                        st.markdown(f"**Pertanyaan:** {chat['question']}")
-                        st.markdown(f"**Jawaban:** {chat['answer']}")
+                chat_html = '<div style="background: #FAFAFA; border-left: 1px solid #E0E0E0; border-right: 1px solid #E0E0E0; padding: 1rem 1.25rem; max-height: 400px; overflow-y: auto;">'
+                for chat in st.session_state.chat_history[-5:]:
+                    chat_html += f"""
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+                        <div style="background: #E3F2FD; color: #0D47A1; padding: 0.6rem 1rem;
+                                    border-radius: 12px 12px 2px 12px; max-width: 80%;
+                                    font-size: 0.88rem; line-height: 1.5;">
+                            {chat['question']}
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-start; margin-bottom: 1rem;">
+                        <div style="background: white; color: #212121; padding: 0.6rem 1rem;
+                                    border-radius: 12px 12px 12px 2px; max-width: 80%;
+                                    font-size: 0.88rem; line-height: 1.6; border: 1px solid #E0E0E0;
+                                    box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                            {chat['answer'].replace(chr(10), '<br>')}
+                        </div>
+                    </div>
+                    """
+                chat_html += '</div>'
+                st.markdown(chat_html, unsafe_allow_html=True)
+
+            # Chat input area
+            col_input, col_btn = st.columns([5, 1])
+            with col_input:
+                user_question = st.text_input(
+                    "Pertanyaan Anda:",
+                    placeholder="Contoh: Jelaskan COA dengan variance terbesar...",
+                    key="ai_chat_input",
+                    label_visibility="collapsed"
+                )
+            with col_btn:
+                send_clicked = st.button("Kirim", key="send_chat", use_container_width=True, icon="📤")
+
+            if send_clicked and user_question:
+                with st.spinner("Thinking..."):
+                    response = ai_analyzer.chat(user_question, summary, coa_recon)
+                    st.session_state.chat_history.append({
+                        "question": user_question,
+                        "answer": response
+                    })
+                st.rerun()
 
         # COA Reconciliation Tab (tab3 when AI is available)
         tab_coa = tab3
