@@ -28,7 +28,7 @@ docker run -p 8501:8501 aurix-reconciliation
 No linter or formatter is configured.
 
 ```bash
-# Run all tests (117 tests)
+# Run all tests (117 tests, verbose + short traceback via pytest.ini defaults)
 pytest
 
 # Run a single test file
@@ -37,11 +37,11 @@ pytest tests/test_engine.py
 # Run tests by name pattern
 pytest -k "test_coa_level"
 
-# Verbose traceback
+# Verbose traceback (overrides pytest.ini --tb=short)
 pytest --tb=long
 ```
 
-Tests use pytest with fixtures in `tests/conftest.py`. LLM-dependent tests are mocked (no API keys needed). All tests run offline.
+Tests use pytest with fixtures in `tests/conftest.py`. LLM-dependent tests are mocked (no API keys needed). All tests run offline. AI-specific tests are in `tests/ai/`.
 
 **CI:** GitHub Actions (`.github/workflows/ci.yml`) runs pytest on every push and PR to `main` using Python 3.11.
 
@@ -57,6 +57,7 @@ aurix/
   config.py                     # ReconciliationConfig, ReconciliationStatus (enum), AuditLogEntry, ReconciliationResult dataclasses
   engine.py                     # ReconciliationEngine: data cleaning, COA-level & transaction-level reconciliation
   exporter.py                   # ReportExporter: multi-sheet Excel export with openpyxl formatting
+  visualizer.py                 # ReconciliationVisualizer: Plotly charts (donut, bar, waterfall, heatmap)
   ai/
     __init__.py                 # Feature flags: LANGCHAIN_AVAILABLE, SKLEARN_AVAILABLE (try/except imports)
     base.py                     # LLMProvider: wraps ChatGroq (llama-3.3-70b-versatile, temp 0.3)
@@ -66,16 +67,17 @@ aurix/
     root_cause.py               # RootCauseAnalyzer: LLM-based root cause analysis per COA
     tools.py                    # LangChain @tool functions for CrewAI agents (shared _DATA_STORE)
   agents/
+    __init__.py                 # Feature flag: CREWAI_AVAILABLE (try/except import)
     orchestrator.py             # AurixCrew: CrewAI Crew that coordinates all agents
     recon_agent.py              # Reconciliation Analysis Agent (CrewAI Agent)
     fraud_agent.py              # Fraud Detection Agent (CrewAI Agent)
     report_agent.py             # Audit Report Writer Agent (CrewAI Agent)
   ui/
-    styles.py                   # Page config, CSS, header rendering
+    styles.py                   # Page config, CSS (Apple-inspired), header rendering
     sidebar.py                  # File upload, config controls, data loading
     metrics.py                  # Summary metric cards
     tab_dashboard.py            # Plotly charts (status donut, comparison bar, variance waterfall, heatmap)
-    tab_ai_analysis.py          # AI insights, anomaly detection, chat, multi-agent tabs
+    tab_ai_analysis.py          # AI insights, anomaly detection, chat, multi-agent tabs (536 lines, largest UI module)
     tab_coa.py                  # COA reconciliation data table
     tab_transactions.py         # Transaction detail view
     tab_audit.py                # Audit trail log
@@ -142,6 +144,24 @@ CrewAI-based multi-agent architecture in `aurix/agents/`:
 - **AurixCrew** orchestrator coordinates three agents (recon, fraud, report) via sequential CrewAI Process.
 - Agents share data through LangChain `@tool` functions in `aurix/ai/tools.py` backed by a module-level `_DATA_STORE` dict.
 - All agents communicate findings in Bahasa Indonesia.
+- Guarded by `CREWAI_AVAILABLE` feature flag in `aurix/agents/__init__.py`.
+
+## Key Patterns
+
+### Graceful Degradation
+
+All optional features (AI, ML, CrewAI) are guarded by feature flags set via try/except imports in `__init__.py` files. The app always runs — AI tab simply doesn't appear when dependencies are missing. The pattern:
+1. Feature flag in `__init__.py` (`LANGCHAIN_AVAILABLE`, `SKLEARN_AVAILABLE`, `CREWAI_AVAILABLE`)
+2. Runtime check for env var (`GROQ_API_KEY`)
+3. Early return with `st.warning()` in UI if unavailable
+
+### Streamlit Session State
+
+Expensive computations (AI insights, ML anomalies, forecasts, crew reports) are cached in `st.session_state` to survive Streamlit reruns. Chat history also persists there. Pattern: check-then-initialize on first access.
+
+### Audit Logging
+
+`ReconciliationEngine._log_action()` is called at every major step. Each `AuditLogEntry` generates a SHA-256 checksum from `timestamp + action + json.dumps(details) + user` (first 16 hex chars stored).
 
 ## Deployment
 
@@ -151,13 +171,6 @@ CrewAI-based multi-agent architecture in `aurix/agents/`:
 - **Docker:** Python 3.11-slim base, non-root user `aurix:aurix` (UID 1000)
 - **Streamlit Cloud:** `.streamlit/config.toml` sets headless mode, disables CORS/XSRF for embedding
 
-## Brand Colors
+## Brand & UI
 
-```python
-primary = "#1B5E20"    # Islamic Green
-secondary = "#FFD700"  # Gold
-accent = "#0D47A1"     # Deep Blue
-success = "#2E7D32"    # Green
-warning = "#F57C00"    # Orange
-danger = "#C62828"     # Red
-```
+Brand colors (Islamic Green `#1B5E20`, Gold `#FFD700`, Deep Blue `#0D47A1`) and Apple-inspired CSS are defined in `aurix/ui/styles.py`. The Excel export header uses Islamic Green (`#1B5E20`) via openpyxl `PatternFill`.
