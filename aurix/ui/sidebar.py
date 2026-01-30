@@ -92,7 +92,7 @@ def render_sidebar() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Re
             """, unsafe_allow_html=True)
 
         if not groq_api_key:
-            st.caption("Set `GROQ_API_KEY` in .env")
+            st.caption("Set `GROQ_API_KEY` in environment variables")
 
         st.markdown("---")
 

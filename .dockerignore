@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+
+# Sample/test files
+*.xlsx
+
+# Git
+.git/
+.gitignore
+
+# NOTE: .env is NOT excluded here so it gets copied into Docker image
