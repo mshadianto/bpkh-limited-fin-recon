@@ -1,0 +1,22 @@
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║                    AURIX RECONCILIATION MODULE - BASE DEPENDENCIES           ║
+# ║                           BPKH Limited - Production                          ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+# Core dependencies only (no AI/ML). Used by Dockerfile for lightweight deployment.
+# For full dependencies (AI, ML, multi-agent), see requirements.txt.
+
+# Core Framework
+streamlit>=1.32.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.0
+openpyxl>=3.1.2
+xlrd>=2.0.1
+
+# Visualization
+plotly>=5.18.0
+
+# Utilities
+python-dateutil>=2.8.2
+python-dotenv>=1.0.0
