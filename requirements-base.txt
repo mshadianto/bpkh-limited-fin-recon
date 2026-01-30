@@ -1,9 +1,9 @@
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
-# ║                    AURIX RECONCILIATION MODULE - BASE DEPENDENCIES           ║
+# ║                    AURIX RECONCILIATION MODULE - RAILWAY DEPENDENCIES        ║
 # ║                           BPKH Limited - Production                          ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
-# Core dependencies only (no AI/ML). Used by Dockerfile for lightweight deployment.
-# For full dependencies (AI, ML, multi-agent), see requirements.txt.
+# Core + AI/ML dependencies (no CrewAI). Used by Dockerfile for Railway deployment.
+# For full dependencies (including multi-agent CrewAI), see requirements.txt.
 
 # Core Framework
 streamlit>=1.32.0
@@ -20,3 +20,10 @@ plotly>=5.18.0
 # Utilities
 python-dateutil>=2.8.2
 python-dotenv>=1.0.0
+
+# Phase 2: AI Integration (LangChain + Groq)
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+
+# Phase 2: ML Anomaly Detection & Forecasting
+scikit-learn>=1.4.0
